@@ -45,6 +45,7 @@ def _build_dtype_map() -> dict[str, Any]:
 
 
 def __getattr__(name: str) -> Any:
+    # PEP 562: defer the torch import until DTYPE_MAP is actually accessed.
     global _DTYPE_MAP_CACHE
     if name == "DTYPE_MAP":
         if _DTYPE_MAP_CACHE is None:

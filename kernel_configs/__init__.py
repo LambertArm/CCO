@@ -154,6 +154,9 @@ def _build_all_configs() -> Dict[str, Dict[str, Any]]:
 
 
 def __getattr__(name: str) -> Any:
+    # PEP 562: fires on both ``kernel_configs.KERNEL_CONFIGS`` attribute
+    # access and ``from kernel_configs import KERNEL_CONFIGS``, so callers
+    # transparently see the resolved (torch-aware) dict on first access.
     global _KERNEL_CONFIGS_CACHE
     if name == "KERNEL_CONFIGS":
         if _KERNEL_CONFIGS_CACHE is None:

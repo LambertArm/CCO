@@ -147,7 +147,7 @@ PRs adding rows to `BENCHMARKS.md` without reproducible artifacts will be asked 
 ## Code Style
 
 - Python ≥ 3.10, type hints encouraged but not required for kernel code
-- `ruff` for lint (`uv run ruff check .`) — 120 char line length, see `pyproject.toml`
+- `ruff` for lint — run `uv run ruff check .` locally (CI runs `ruff check .` directly, without `uv sync`, to keep the lint job under a second). 120 char line length, see `pyproject.toml`.
 - No new top-level dependencies without discussion in an issue first
 - Tools should emit **greppable `key=value` output**, not prose — the agent has to parse it
 
