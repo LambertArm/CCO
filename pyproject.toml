@@ -7,15 +7,11 @@ requires-python = ">=3.10"
 dependencies = [
     "torch>=2.4.0; sys_platform == 'linux'",
     "triton>=3.0.0; sys_platform == 'linux'",
-    "tabulate>=0.9.0",
-    "matplotlib>=3.8.0",
-    "pynvml>=11.5.0; sys_platform == 'linux'",
     "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
     "ruff>=0.4.0",
 ]
 

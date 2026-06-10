@@ -1,14 +1,14 @@
 {
   "artifact": "kernel.py",
   "files": {
-    "benchmark.py": "2bb24f0fa435e4b35cde3b4ce39dbc9694507220fa6e79e1220b387f13a30653",
-    "cco.config.json": "a9af4df44b3bf264350dfb4259ef04a769d7e86a38027c8ae0284af6eeb76fc8",
+    "benchmark.py": "b687ab96867f4f521ae64a58907893a93e0679902bb8ba7bda6bf8c9dd54f8f2",
+    "cco.config.json": "93782d09a81561d77ea0ac81a3d5bec806122ddefdcc6ca935f3a902032f8bee",
     "cco/__init__.py": "f60e916523780b6c8e5204e3b3171d9f0417ca8d571ce3c85d0dd36e9d69541f",
     "cco/blob.py": "8d3de0941ef8193dc669d1da8bb4c2e0c7640b76862eeb6765fa6be071aa64e0",
     "cco/dispatch_trap.py": "47fe4e99ceed3b0dd9eda66abbf42a9cf34949df70881e144feabd4e9947974d",
     "cco/gate.py": "ebb4955a5ce8124da96952824915977811c9f6b67ba5eddc34dc3e2d29acc528",
     "cco/guard_kernel.py": "294d9e1400ffa382cc0681076601629dab3be705816dcd7ba5eb4f2aae36dab6",
-    "cco/manifest_tool.py": "5a05225513072dce87ceb8e793ba4e40f36e1a377335c9a5cc04154469b216ff",
+    "cco/manifest_tool.py": "87dbe72f81f325fe46b25a40217f1ae656cee33a6d6ce4c1cf9f45e92e11297c",
     "cco/seed.py": "b978dcefbc679ea5ccfa0de75038906d22dceb9ece6c170da2f2eab1ae761bb6",
     "cco/significance.py": "ed7a548a4cecef3f6b86daeea2fe4ec0978f81ffa0bea96c1f541e6a9b1d173e",
     "champions/dsa_forward/kernel.py": "f1631352292d64abee6717c170aec94d08256770c3594fc1f1fd6050d8190e9e",
@@ -29,16 +29,17 @@
     "kernel_configs/swiglu_input_quant.py": "b6e755f026ff6578b7c128bb8654ce003d04220fcee31fe7165efe9eb5d5a17e",
     "kernel_configs/swiglu_input_quant.toml": "970b028c33ada96be27d2d864e2998c1eb4bb690864fb28e9410b24051c21ad3",
     "payload-schema.json": "c32de71c8adece0ed29004d0873a9bdf9b6013f86bd612e2a131a8907d4d126c",
-    "pyproject.toml": "e4966c0e95cf18ed695a9f58c038081779aaed3f9047e22b67d1fa46f496926c",
+    "pyproject.toml": "44fc9b8c1ae867686d163a0683579114641410cf2b15e97b69bed0496ff1026e",
     "references/__init__.py": "e2efd30826d77b7785a82d65a62d51afd4033421a67551a3fccfe82a3b2e9284",
     "references/dsa_forward.py": "bf5b679e290c610b5dd5478c0c2a7867ad98bc42215a6bb4dfcd1ccb43b55bfd",
     "references/matmul.py": "1ab5051f012d8ab5109cab1c3704d109bf88369cd330af04eb7a46312fe1a660",
     "references/qkv_part_rope.py": "fc88d52ca8f14584af5ba9c989ddfa7a0c22bdcaedb7e3b14fd7147b7f7b9af5",
     "references/rms_norm.py": "1d89829c71fd4fb0a5867f669a26bcd25090560362bc2212f60597fbb5260b4f",
     "references/swiglu_input_quant.py": "7042bce1e76151dd50a0ec78b70f23613b3f91765df9570ee45fcba2c33935f6",
-    "runtime/Dockerfile": "0ac2f3fa3e28d521fa83cbd9229856aee3ec38f61beb5a8703b43e28e5c94439",
+    "runtime/Dockerfile": "088663c1e62b3403c014a558f4ef25f6f8385fb340f92b532ba96fc77c541db6",
     "runtime/gpu.config": "300701d76f24472383a47db504a7e45cfea262682c0dafe387cf6a992c0525d9",
-    "runtime/start.sh": "d7c6e620953102503fb414d70deb0ae3a51bc8428093c5e9c9c65e9f6039fdfe"
+    "runtime/start.sh": "d7c6e620953102503fb414d70deb0ae3a51bc8428093c5e9c9c65e9f6039fdfe",
+    "uv.lock": "0b257efecd8de294e16c1c9c98616b2f00fb50244e5793d0ab7fd1d02fd4663a"
   },
   "locked_paths": [
     "benchmark.py",
@@ -49,7 +50,8 @@
     "runtime",
     "cco.config.json",
     "payload-schema.json",
-    "pyproject.toml"
+    "pyproject.toml",
+    "uv.lock"
   ],
   "version": 1
 }

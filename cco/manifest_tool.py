@@ -39,11 +39,13 @@ import sys
 MANIFEST_VERSION = 1
 DEFAULT_ARTIFACT = "kernel.py"
 
-# Competition locked roots (files + dirs). Non-existent entries are skipped at generate time;
-# the canonical set is finalized in cco.config.json (the locked_paths list).
+# Competition locked roots (files + dirs). The canonical set is cco.config.json's locked_paths —
+# `generate` reads it automatically when present at --root; this fallback mirrors it and must be
+# kept in sync. Missing entries are skipped at generate time, with a WARNING (an unpinned path is
+# an unprotected path).
 DEFAULT_LOCKED_PATHS = [
-    "tools", "references", "kernel_configs", "cco", "champions",
-    "runtime", "cco.config.json", "payload-schema.json", "pyproject.toml",
+    "benchmark.py", "references", "kernel_configs", "cco", "champions",
+    "runtime", "cco.config.json", "payload-schema.json", "pyproject.toml", "uv.lock",
 ]
 
 IGNORE_DIRNAMES = {"__pycache__", ".git", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
@@ -227,11 +229,22 @@ def main(argv=None) -> int:
 
     if args.cmd == "generate":
         paths, artifact = args.paths, args.artifact
-        if args.config:
-            with open(args.config, "r", encoding="utf-8") as f:
+        config_path = args.config
+        if config_path is None and paths is None:
+            _auto = os.path.join(args.root, "cco.config.json")
+            if os.path.isfile(_auto):  # the config is the single source of truth when present
+                config_path = _auto
+                print(f"locked_paths: using {_auto}", file=sys.stderr)
+        if config_path:
+            with open(config_path, "r", encoding="utf-8") as f:
                 _cfg = json.load(f)
             paths = _cfg.get("locked_paths", paths)
             artifact = _cfg.get("artifact", artifact)
+        _effective = list(paths if paths is not None else DEFAULT_LOCKED_PATHS)
+        _missing = [p for p in _effective if not os.path.exists(os.path.join(args.root, p))]
+        if _missing:
+            print(f"WARNING: locked path(s) not found on disk and NOT pinned: {', '.join(_missing)}",
+                  file=sys.stderr)
         man = compute_manifest(args.root, paths, artifact)
         text = json.dumps(man, indent=2, sort_keys=True) + "\n"
         if args.out == "-":

@@ -75,7 +75,11 @@ uv run --no-project python cco/guard_kernel.py kernel.py    # check you didn't d
 
 Self-scoring uses the **published seed (42)** so you can iterate. The canonical rerun uses a secret
 seed derived from your PR HEAD SHA, so you cannot precompute or memorize outputs — your kernel must
-be genuinely general. (No GPU? You can at least run the AST guard, which is pure Python.)
+be genuinely general.
+
+Self-scoring needs **Linux with a CUDA GPU** (on Windows, use WSL2): `pyproject.toml` installs
+torch/triton only on Linux, and Triton has no Windows wheels. (No GPU? You can at least run the AST
+guard, which is pure Python.)
 
 ## 5. Submit
 

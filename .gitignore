@@ -17,15 +17,16 @@ run.log
 *.nsys-rep
 *.sqlite
 *.csv
-*.json
-# ...but DO track the CCO competition config files (anchored to repo root):
-!/cco.config.json
-!/payload-schema.json
-!/manifest.json
+
+# Generated artifacts only — tracked JSON (manifest.json, cco.config.json, payload-schema.json)
+# is NOT blanket-ignored, so future tracked JSON anywhere in the tree works by default.
+traces/
+kernel_trace.json
+score-blob*.json
+out/
 
 LOCAL.md
 design-overview.md
-assets/*
 
 .ruff_cache/
 .pytest_cache/

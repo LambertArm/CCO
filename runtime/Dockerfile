@@ -36,7 +36,8 @@ ARG TORCH_VERSION=2.8.0
 ARG TRITON_VERSION=3.4.0
 RUN uv pip install --system --index-url https://download.pytorch.org/whl/cu128 \
         "torch==${TORCH_VERSION}+cu128" \
-    && uv pip install --system "triton==${TRITON_VERSION}" numpy tabulate "tomli; python_version < '3.11'"
+    && uv pip install --system "triton==${TRITON_VERSION}" numpy "tomli; python_version < '3.11'"
+# numpy is not imported by CCO code; it is installed so torch's numpy-interop paths are available.
 
 # Bake the LOCKED competition surface (everything manifest.json pins). kernel.py is NOT part of the
 # locked surface — it is mounted read-only at run time as the variable artifact (the COPY below is

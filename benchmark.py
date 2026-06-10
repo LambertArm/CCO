@@ -964,7 +964,7 @@ def run_profile(kernel_fn: Callable, config: dict, seed: int = 42):
     dtype = config["test_dtypes"][0]
     inputs = gen_fn(prof_size, dtype, device, seed=seed)
 
-    trace_dir = os.environ.get("CUDA_EVOLVE_TRACE_DIR", "./traces")
+    trace_dir = os.environ.get("CCO_TRACE_DIR", "./traces")
     os.makedirs(trace_dir, exist_ok=True)
 
     print("\n=== PROFILING ===")
@@ -1257,7 +1257,7 @@ def main():
     print(f"bench_time_seconds: {t_elapsed:.1f}")
 
     if t_elapsed > 90:
-        print(f"WARNING: bench.py took {t_elapsed:.1f}s (budget: 90s)")
+        print(f"WARNING: benchmark.py took {t_elapsed:.1f}s (budget: 90s)")
 
     if args.blob:
         from cco.blob import build_score_blob

@@ -107,13 +107,15 @@ hardware; the on-chain wiring (gate-pipeline automation, attested compute) is in
 ```
 kernel.py                 # *** THE MINER FILE *** (KERNEL_TYPE + kernel_fn); the one mutable artifact
 benchmark.py              # locked scorer: 5-stage correctness + roofline + --score / --blob
-cco/                      # enforcement: guard_kernel, dispatch_trap, manifest_tool, seed, significance, blob
+cco/                      # enforcement: guard_kernel, gate, dispatch_trap, manifest_tool, seed, significance, blob
 references/               # locked pure-PyTorch correctness oracles (5)
 kernel_configs/           # locked benchmark spec + input generation (5)
 champions/<track>/kernel.py   # locked per-track champion baseline (the bar to beat)
-runtime/                  # (in progress) baked image, pinned by digest
+runtime/                  # locked rerun-image recipe (image digest recorded at publish)
+docs/                     # GPU optimization study guides (informational; not locked)
 manifest.json             # Gate-2 file-integrity set        cco.config.json   # policy + gittensor config
 payload-schema.json       # PR submission schema             DESIGN.md         # design + threat model
+BENCHMARKS.md             # scoring methodology + seed-champion baselines
 ```
 
 ---

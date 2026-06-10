@@ -17,7 +17,8 @@
     "runtime",
     "cco.config.json",
     "payload-schema.json",
-    "pyproject.toml"
+    "pyproject.toml",
+    "uv.lock"
   ],
 
   "no_delegation": {

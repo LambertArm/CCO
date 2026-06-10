@@ -30,7 +30,10 @@ A PR merges only on affirmative evidence. The gate pipeline short-circuits on th
 3. **Gate 2 — manifest integrity** — re-hash every path in `main:manifest.json` at the PR HEAD; only
    `kernel.py` may differ, and **no unlisted file may be added** to a locked directory
    (`cco/manifest_tool.py` pins the full directory listing, closing the `kernel_configs` auto-import
-   RCE).
+   RCE). Gate 2 additionally rejects any PR whose **git diff touches anything other than
+   `kernel.py`** — this complementary diff rule is what covers `manifest.json` itself, `.github/`,
+   the docs, and stray top-level files outside any locked path. The repo's own CI status is
+   advisory; no gate consults it.
 4. **Gate 3 — no-delegation static scan** — `cco/guard_kernel.py` AST-rejects high-level/vendor ops,
    the `@` operator, dynamic-dispatch escapes, inline CUDA-C, and `get_*` exports; requires a
    `@triton.jit` kernel. Cheap; runs before any GPU spend.
