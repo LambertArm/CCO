@@ -111,11 +111,16 @@ two-point wall-clock timing, a planned follow-up.
 
 **Timed-loop integrity.** The timed loop runs on a separate buffer set whose input is mutated by one
 element before every call, so a kernel that memoizes by pointer must return a now-stale output and a
-kernel that memoizes by content must recompute (honest timing). A parent-chosen, kernel-unknowable
-sample of timed calls has its `(input, output)` captured and oracle-checked, and an **absolute
-roofline floor** (`max(bytes/peak_bw, flops/peak_flops)`) rejects any physically-impossible median.
-Together these close memoize-and-replay, including the padded variant (cache the answer, burn dummy
-time to clear the floor — the burned-time output is still stale and the probe catches it).
+kernel that memoizes by content must recompute (honest timing). A sample of timed calls has its
+`(input, output)` captured and oracle-checked — and the sampled positions are drawn from **server-side
+entropy chosen at scoring time** (not the PR-HEAD seed, which the miner can recompute; not a
+closed-form schedule), spread across **all** blocks so they overlap the median-feeding calls, and the
+job file is deleted before the kernel loads (`open` is also banned) so the kernel cannot read which
+calls are checked. A schedule-aware kernel therefore cannot do real work only where it is observed: it
+must be correct on **every** timed call or risk the probe. An **absolute roofline floor**
+(`max(bytes/peak_bw, flops/peak_flops)`) plus a captured-clock wall anchor reject any
+physically-impossible or side-stream-under-reported median. Together these close memoize-and-replay
+(including the padded variant) and the predictable-probe-schedule evasion.
 
 **Native no-delegation backstop (the load-bearing guard).** The in-child dispatch trap is necessary
 but not sufficient: a kernel sharing the interpreter can pop the TorchFunction/TorchDispatch mode

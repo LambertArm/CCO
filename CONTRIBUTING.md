@@ -55,14 +55,16 @@ Triton-only.** `kernel_fn` (and anything it calls) may **not**:
   `_weight_int*pack_mm`, `torch.linalg.*`, or the `@` matmul operator — i.e. any vendor BLAS/DNN call;
 - JIT/codegen the kernel: `torch.compile`, `torch._dynamo` / `torch._inductor` / `torch.fx` / `torch.jit`;
 - reach any of the above through aliases, `getattr` / `eval` / `exec` / `importlib`, introspection
-  dunders (`__dict__` / `__getattribute__` / `__class__` …), or tensor methods (`a.mm(b)`);
+  dunders (`__dict__` / `__getattribute__` / `__class__` …), `open` (no file I/O), or tensor methods
+  (`a.mm(b)`);
 - use inline CUDA-C (`torch.utils.cpp_extension`), or pop/neuter the runtime trap
   (`torch.overrides`, `torch.utils._python_dispatch`);
 - define `get_inputs`/`get_flops`/`get_bytes`.
 
 **Imports are an allowlist:** only `torch`, `triton`, and a few pure-Python utilities
-(`math` / `typing` / `dataclasses` / `functools` / `numpy` / …). No `os` / `sys` / `ctypes` /
-`subprocess`, and **no alternate GPU-compute library** (`cupy` / `jax` / `cutlass` / `numba` / …).
+(`math` / `typing` / `dataclasses` / `functools` / `collections` / …). No `os` / `sys` / `ctypes` /
+`subprocess` / `numpy` (it re-exposes ctypes), and **no alternate GPU-compute library**
+(`cupy` / `jax` / `cutlass` / `numba` / …).
 
 It **must** contain at least one `@triton.jit` kernel and do the actual compute there. Allowed in the
 Python wrapper: allocation (`torch.empty`/`empty_like`), reshape/view/transpose/contiguous, dtype

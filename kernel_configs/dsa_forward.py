@@ -63,10 +63,15 @@ def reference_fn(inputs: dict):
 
 
 def flops_fn(size: dict) -> int:
-    return size["batch"] * size["seq_len_q"] * size["n_heads"] * (
+    # The oracle is CAUSAL (masks ki > qi + offset), so a correct kernel does ~half the QK^T and
+    # softmax*V FLOPs of dense attention. The 0.5 triangular factor keeps the roofline floor a true
+    # LOWER bound (sl_q <= sl_kv => the real causal fraction is >= 0.5), so an honest causal kernel
+    # near peak is not false-rejected.
+    dense = size["batch"] * size["seq_len_q"] * size["n_heads"] * (
         2 * size["seq_len_kv"] * size["head_dim"]
         + 2 * size["seq_len_kv"] * size["head_dim"]
     )
+    return dense // 2
 
 
 def bytes_fn(size: dict, dtype: torch.dtype) -> int:

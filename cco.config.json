@@ -44,7 +44,7 @@
         "softmax", "log_softmax", "scaled_dot_product_attention"
       ],
       "deny_builtins": [
-        "eval", "exec", "compile", "__import__", "getattr", "setattr", "globals", "vars"
+        "eval", "exec", "compile", "__import__", "getattr", "setattr", "globals", "vars", "open"
       ],
       "deny_dunder_attrs": [
         "__dict__", "__getattribute__", "__getattr__", "__globals__", "__builtins__",
@@ -54,7 +54,7 @@
       "allow_import_modules": [
         "torch", "triton",
         "math", "cmath", "typing", "__future__", "dataclasses", "functools", "itertools",
-        "collections", "operator", "enum", "numbers", "warnings", "numpy"
+        "collections", "operator", "enum", "numbers", "warnings"
       ],
       "forbidden_toplevel_defs": ["get_inputs", "get_flops", "get_bytes"],
       "require_kernel_fn": true,

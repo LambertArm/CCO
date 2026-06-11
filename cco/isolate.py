@@ -97,6 +97,15 @@ def _child_main(job_path: str, out_path: str) -> int:
     _perf = time.perf_counter
     from cco.dispatch_trap import DelegationError, delegation_trap, run_guarded
 
+    # The job (incl. the secret probe schedule) is now fully in memory — DELETE the file before the
+    # submission loads so a kernel cannot read which timed calls are oracle-checked (`open` is also
+    # statically banned; this is the runtime backstop). The schedule then lives only in this function's
+    # locals, unreachable from the kernel's module namespace.
+    try:
+        os.remove(job_path)
+    except OSError:
+        pass
+
     spec = importlib.util.spec_from_file_location("cco_submission_kernel", job["kernel_path"])
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # the only place the submission executes; this is the isolated child
@@ -168,8 +177,7 @@ def _child_main(job_path: str, out_path: str) -> int:
             tbufs = [cuda_in(b) for b in sc["timed_buffers"]]       # separate storage: mutated while timing
             ntb = len(tbufs)
             mut_key = sc["mut_key"]
-            cap_blocks = set(sc.get("capture_blocks") or [])
-            cap_rep = int(sc.get("cap_rep", 0))
+            probe_set = {tuple(p) for p in (sc.get("probe_positions") or [])}   # server-random (block, rep)
 
             # Per-call input mutation via a tiny TRITON store, NOT a torch op: a torch setitem would be
             # intercepted by the delegation trap (~tens of us of Python per call) and make the CPU, not
@@ -210,12 +218,11 @@ def _child_main(job_path: str, out_path: str) -> int:
                 _t0 = _perf()
                 for blk in range(n_blk):
                     _trap_verify()         # between blocks: catch a kernel that popped the trap mid-loop
-                    is_cap = blk in cap_blocks
                     s.record()
                     for r in range(rep):
                         tb = tbufs[g % ntb]
                         mutate(g % ntb, g)
-                        grab = is_cap and r == cap_rep
+                        grab = (blk, r) in probe_set
                         in_clone = clone_in(tb) if grab else None   # the exact input handed to the kernel
                         out = kernel_fn(**tb)
                         if grab:
@@ -224,8 +231,10 @@ def _child_main(job_path: str, out_path: str) -> int:
                         g += 1
                     e.record()
                     _sync()
-                    if not is_cap:                                  # capture blocks pay clone cost -> untimed
-                        event_block_us.append(s.elapsed_time(e) * 1000.0 / rep)
+                    # EVERY block feeds the median (probe positions are scattered across all blocks and
+                    # unknowable to the kernel), so a kernel cannot garbage a median-feeding call without
+                    # risking the oracle probe. The few async clones at probe positions are negligible.
+                    event_block_us.append(s.elapsed_time(e) * 1000.0 / rep)
                 # Captured-clock wall of the whole timed window: forge-resistant (the kernel cannot
                 # patch _perf or _sync here), so the parent anchors the cuda-event sample's scale to
                 # it — a kernel under-reporting events (e.g. side-stream evasion) is caught.
@@ -329,6 +338,7 @@ def run_isolated(kernel_path: str, config: dict, seed: int, compare_fn, *,
     is supplied by the caller (benchmark._do_compare) so this module stays torch-light at import.
     Returns the run_scored_sample dict shape + a `stages` dict (smoke_test/shape_sweep/.../correctness).
     """
+    import random
     import statistics
     import time
 
@@ -415,12 +425,17 @@ def run_isolated(kernel_path: str, config: dict, seed: int, compare_fn, *,
     timed_bufs = [gen_fn(scored_size, dtypes[0], dev, seed=seed + 2000 + i) for i in range(max(1, n_timed))]
     timed_cpu = [{k: (v.detach().to("cpu") if hasattr(v, "detach") else v) for k, v in b.items()}
                  for b in timed_bufs]
-    # capture a kernel-unknowable sample of timed blocks (1 probe each), keeping >=1 timed block
-    k_cap = min(4, max(1, n_blocks // 5))
-    k_cap = min(k_cap, max(0, n_blocks - 1))
-    capture_blocks = sorted({min(n_blocks - 1, max(0, round(n_blocks * (j + 0.5) / k_cap)))
-                             for j in range(k_cap)}) if k_cap else []
-    cap_rep = rep // 2
+    # Oracle-check a sample of timed calls chosen from SERVER-SIDE entropy at scoring time — NOT the
+    # PR-HEAD seed (the miner can recompute that via cco/seed.py), and NOT a closed-form schedule.
+    # The positions are spread over ALL blocks (so they overlap the median-feeding calls) and are
+    # deleted from the child before the kernel loads (job.pt removed; `open` is statically banned), so
+    # a schedule-aware kernel cannot tell which calls are checked and must be correct on EVERY timed
+    # call — garbaging any one risks the probe. This closes the predictable-schedule crown-steal.
+    import secrets as _secrets
+    _srng = random.Random(_secrets.randbits(128))
+    total_timed = n_blocks * rep
+    n_probe = max(4, min(24, total_timed // 8)) if total_timed > 4 else total_timed
+    probe_positions = sorted(divmod(i, rep) for i in _srng.sample(range(total_timed), min(n_probe, total_timed)))
 
     del scored_bufs, timed_bufs, det_inputs_gpu
     torch.cuda.empty_cache()
@@ -438,7 +453,7 @@ def run_isolated(kernel_path: str, config: dict, seed: int, compare_fn, *,
                     "scored": {"buffers": scored_cpu, "n_pre": n_val // 2,
                                "warmup": warmup, "n_blocks": n_blocks, "rep": rep,
                                "timed_buffers": timed_cpu, "mut_key": mut_key,
-                               "capture_blocks": capture_blocks, "cap_rep": cap_rep}}, job_path)
+                               "probe_positions": probe_positions}}, job_path)
 
         # Import torch FIRST (the real one from site-packages) and APPEND the repo root rather than
         # inserting it at sys.path[0]. Otherwise a planted repo-root `torch.py` (or `triton.py`, ...)
@@ -544,14 +559,14 @@ def run_isolated(kernel_path: str, config: dict, seed: int, compare_fn, *,
                 scored_ok = False
 
         # TIMED-LOOP probe: each captured (mutated input, output) sample must match the oracle on that
-        # EXACT input. A cache that ignores the per-call mutation returns a stale -> wrong output here.
-        # Together with the roofline floor this closes memoize-and-replay incl. the padded variant
-        # (cache the answer, burn dummy time to clear the floor): the burned-time output is still stale.
+        # EXACT input. A cache that ignores the per-call mutation returns a stale -> wrong output here;
+        # a schedule-aware kernel that garbages an un-probed call is caught because the server-random
+        # probe positions (spread across all blocks, hidden from the kernel) overlap the median.
         probe_ok = True
         pin = res.get("probe_inputs") or []
         pout = res.get("probe_outputs") or []
-        if capture_blocks and res.get("event_block_us"):      # probes were requested and timing ran
-            if len(pout) < len(capture_blocks):
+        if probe_positions and res.get("event_block_us"):     # probes were requested and timing ran
+            if len(pout) < len(probe_positions):
                 probe_ok = False
             for pi, po in zip(pin, pout):
                 pin_gpu = {k: (v.to("cuda") if hasattr(v, "to") else v) for k, v in pi.items()}
@@ -600,7 +615,13 @@ def run_isolated(kernel_path: str, config: dict, seed: int, compare_fn, *,
             wall_per_iter_us = (timed_wall_s / denom * 1e6) if denom else 0.0
             if sum(latencies_us) * rep / 1e6 > child_wall_s:          # outer backstop
                 timing_inconsistent = True
-            if wall_per_iter_us > 0 and event_med_us < wall_per_iter_us / 4.0:  # scale anchor
+            # Scale anchor: the captured-clock wall (which the kernel cannot patch and which the
+            # full-device sync makes count side-stream work) bounds the cuda-event sample. An honest
+            # kernel's event median is a large fraction of the per-iter wall (the wall only adds launch
+            # /sync overhead); a side-stream under-reporter's events fall well below it. Tightened from
+            # /4 to 0.5x — a real improvement, though a <~2x under-report still needs parent two-point
+            # wall timing (a documented v2 follow-up).
+            if wall_per_iter_us > 0 and event_med_us < wall_per_iter_us * 0.5:  # scale anchor
                 timing_inconsistent = True
             if floor_us > 0 and event_med_us < floor_us:              # absolute roofline floor
                 below_floor = True
@@ -806,6 +827,34 @@ def kernel_fn(x, weight, eps=1e-6):
 '''
 
 
+# A SCHEDULE-AWARE kernel: it reads the per-call marker, predicts which calls are oracle-checked
+# (assuming the old deterministic schedule), does real work only there + on the clean val buffers, and
+# garbages the rest. Defeated by the SERVER-RANDOM probe positions (which overlap the median), so the
+# garbage on a "predicted-safe" call is caught.
+_SCHEDULE_AWARE = '''
+import torch, triton, triton.language as tl
+KERNEL_TYPE = "rms_norm"
+@triton.jit
+def _atk(X, W, Y, s, N, M, eps, B: tl.constexpr):
+    row = tl.program_id(0)
+    marker = tl.load(X).to(tl.float32)
+    is_val = marker < 37.0
+    blk = ((marker - 62.0) / 20.0).to(tl.int32)     # (g-25)//rep for the self-test (rep=20)
+    guess = (blk == 2)                              # the OLD deterministic capture block
+    active = is_val | guess | (row * 100 < M * 30)  # garbage (30% rows) on "predicted-unprobed" calls
+    if active:
+        cols = tl.arange(0, B); m = cols < N
+        x = tl.load(X + row*s + cols, mask=m, other=0.0).to(tl.float32)
+        rms = tl.sqrt(tl.sum(x*x)/N + eps)
+        w = tl.load(W + cols, mask=m, other=0.0).to(tl.float32)
+        tl.store(Y + row*s + cols, (x/rms*w), mask=m)
+def kernel_fn(x, weight, eps=1e-6):
+    M, N = x.shape; y = torch.empty_like(x)
+    _atk[(M,)](x, weight, y, x.stride(0), N, M, eps, B=triton.next_power_of_2(N))
+    return y
+'''
+
+
 def _self_test() -> int:
     import torch
 
@@ -892,6 +941,11 @@ def _self_test() -> int:
           "stale-replay (real work, but ignores the per-call input mutation) -> "
           f"CAUGHT by the timed-output probe (probe_ok={r.get('probe_ok')}, "
           f"median {r['median_us']:.2f}us above floor {r.get('roofline_floor_us', 0):.2f}us)")
+
+    r = run(_SCHEDULE_AWARE)
+    check(not r["correct"] and not r.get("probe_ok"),
+          "schedule-aware garbage (real only where it predicts a probe) -> CAUGHT by the "
+          f"server-random probe schedule (probe_ok={r.get('probe_ok')})")
 
     if _preload_so():
         r = run(_POP_DELEGATE)

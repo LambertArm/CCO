@@ -89,9 +89,11 @@ DENY_METHODS = frozenset({
     "softmax", "log_softmax", "scaled_dot_product_attention",
 })
 
-# Builtins that enable dynamic dispatch / code execution (denylist-escape vectors).
+# Builtins that enable dynamic dispatch / code execution (denylist-escape vectors), plus `open`
+# (a Triton kernel never needs file I/O; banning it stops a kernel from reading the scoring job —
+# the secret probe schedule — or any other host file).
 DENY_BUILTINS = frozenset({
-    "eval", "exec", "compile", "__import__", "getattr", "setattr", "globals", "vars",
+    "eval", "exec", "compile", "__import__", "getattr", "setattr", "globals", "vars", "open",
 })
 
 # Introspection/traversal dunder ATTRIBUTES that defeat a name-based scan by reaching an arbitrary
@@ -111,10 +113,13 @@ DENY_DUNDER_ATTRS = frozenset({
 # GPU-compute library (cupy/jax/cutlass/cuda-python/numba/pycuda/tensorrt/...) that could perform a
 # matmul outside torch's (interposed) view. Dangerous torch SUBMODULES are independently blocked by
 # DENY_QUALIFIED_PREFIXES above; importing `torch` itself is fine, USING those namespaces is not.
+# NOTE: numpy is intentionally NOT allowlisted — numpy.ctypeslib re-exposes the full ctypes module
+# (numpy.ctypeslib.ctypes.CDLL), which would let a kernel run native code / dlopen a vendor BLAS and
+# bypass the LD_PRELOAD trap. Triton kernels do not need numpy.
 ALLOW_IMPORT_MODULES = frozenset({
     "torch", "triton",
     "math", "cmath", "typing", "__future__", "dataclasses", "functools", "itertools",
-    "collections", "operator", "enum", "numbers", "warnings", "numpy",
+    "collections", "operator", "enum", "numbers", "warnings",
 })
 
 # Module-level names the artifact must NOT define (the LOCKED config owns these).
@@ -576,6 +581,12 @@ _NEGATIVE_CASES = [
      "dynamic-dispatch"),
     ("class-traversal sandbox escape",
      "import torch\ndef kernel_fn(a, b):\n    return ().__class__.__bases__[0].__subclasses__()\n",
+     "dynamic-dispatch"),
+    ("numpy import (re-exposes ctypes via numpy.ctypeslib) — not in the allowlist",
+     "import torch\nimport numpy\ndef kernel_fn(a, b):\n    return numpy.ctypeslib.ctypes.CDLL('x')\n",
+     "forbidden-import"),
+    ("file read via open() (could read the secret scoring job)",
+     "import torch\ndef kernel_fn(a, b):\n    return open('job.pt', 'rb').read()\n",
      "dynamic-dispatch"),
 ]
 
