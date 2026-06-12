@@ -37,6 +37,7 @@
         "torch.cuda.set_stream", "torch.cuda.current_stream", "torch.cuda.default_stream",
         "torch.cuda.Event", "torch.cuda.graph", "torch.cuda.CUDAGraph",
         "torch.cuda.make_graphed_callables", "torch.cuda.graph_pool_handle",
+        "torch.Stream", "torch.Event",
         "torch.cuda.memory_allocated", "torch.cuda.max_memory_allocated",
         "torch.cuda.memory_reserved", "torch.cuda.max_memory_reserved",
         "torch.cuda.memory_cached", "torch.cuda.max_memory_cached",
@@ -49,7 +50,7 @@
         "torch.nn.functional", "torch.ops", "torch._C", "torch.linalg", "torch.utils.cpp_extension",
         "torch.overrides", "torch.utils._python_dispatch",
         "torch._dynamo", "torch._inductor", "torch.fx", "torch.jit", "torch.classes",
-        "torch.cuda.graphs", "torch.cuda.memory"
+        "torch.cuda.graphs", "torch.cuda.memory", "torch.cuda.streams"
       ],
       "deny_methods": [
         "matmul", "mm", "bmm", "addmm", "baddbmm", "addbmm", "einsum", "tensordot",

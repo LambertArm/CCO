@@ -72,6 +72,10 @@ DENY_QUALIFIED_NAMES = frozenset({
     "torch.cuda.set_stream", "torch.cuda.current_stream", "torch.cuda.default_stream",
     "torch.cuda.Event", "torch.cuda.graph", "torch.cuda.CUDAGraph",
     "torch.cuda.make_graphed_callables", "torch.cuda.graph_pool_handle",
+    # stream/event under their CANONICAL module path + the top-level torch.* aliases (the torch.cuda.*
+    # entries above are only re-exports; torch.cuda.streams.Stream / torch.Stream / torch.Event are the
+    # same API under other qualified names and must be banned too)
+    "torch.Stream", "torch.Event",
     # CUDA allocator introspection — the correctness probe clones the (input, output) of a server-random
     # sample of timed calls, allocating extra device memory ONLY on probed calls. A kernel polling its
     # own allocation across calls could correlate that step-up with "this call is probed" and do real
@@ -101,6 +105,7 @@ DENY_QUALIFIED_PREFIXES = (
     "torch.classes",              # torch.classes.load_library -> dlopen escape
     "torch.cuda.graphs",          # CUDA graph capture -> replay can distort the timed window
     "torch.cuda.memory",          # torch.cuda.memory.* allocator-stats submodule (probe side channel)
+    "torch.cuda.streams",         # torch.cuda.streams.Stream/Event — canonical path behind the re-exports
 )
 
 # Method names that are always rejected, flagged on any receiver (we usually can't prove the receiver
@@ -444,6 +449,20 @@ class _Scanner(ast.NodeVisitor):
                       f"as a value into another call)", node)
         self.generic_visit(node)
 
+    # --- structural pattern matching: a class pattern's keyword sub-patterns do getattr(subject, name),
+    #     with `name` stored in MatchClass.kwd_attrs as a BARE string (no ast.Attribute / ast.Name /
+    #     ast.Constant node) — so `match e: case object(__traceback__=tb)` reads a banned attribute that
+    #     visit_Attribute never sees. Scan the kwd_attrs strings against the same denylists. (Positional
+    #     class patterns access __match_args__-named attrs, but builtins like `object` expose no match
+    #     args, so the keyword form is the reachable frame/dispatch route.) ---
+    def visit_MatchClass(self, node):
+        for name in (node.kwd_attrs or []):
+            if name in self.policy.deny_dunder_attrs or name in self.policy.deny_methods:
+                self._add("dynamic-dispatch",
+                          f"match-class pattern reads `.{name}` by name (attribute-by-name escape that "
+                          f"defeats the AST scan — kwd_attrs is a bare string list)", node)
+        self.generic_visit(node)
+
     # --- imports (ALLOWLIST) ---
     def visit_Import(self, node):
         for a in node.names:
@@ -738,6 +757,26 @@ _NEGATIVE_CASES = [
      ("import torch\nfrom functools import reduce as _rd\ndef kernel_fn(a, b):\n    g = getattr\n"
       "    return _rd(g, ['__class__'], b)\n"),
      "dynamic-dispatch"),
+    ("match/case frame walk (attr name in MatchClass.kwd_attrs, no ast.Attribute node)",
+     ("import torch\ndef kernel_fn(a, b):\n"
+      "    try:\n        raise RuntimeError()\n"
+      "    except RuntimeError as e:\n        exc = e\n"
+      "    match exc:\n        case object(__traceback__=tb):\n"
+      "            match tb:\n                case object(tb_frame=fr):\n"
+      "                    match fr:\n                        case object(f_locals=loc):\n"
+      "                            return loc\n    return a\n"),
+     "dynamic-dispatch"),
+    ("match/case delegation (case object(mm=f) -> f(b) bypasses the .mm() method ban)",
+     ("import torch\ndef kernel_fn(a, b):\n"
+      "    match a:\n        case object(mm=f):\n            return f(b)\n    return a\n"),
+     "dynamic-dispatch"),
+    ("side-stream under canonical path torch.cuda.streams.Stream (not the re-export)",
+     ("import torch\nimport torch.cuda.streams\ndef kernel_fn(a, b):\n"
+      "    s = torch.cuda.streams.Stream()\n    return a + b\n"),
+     "delegation"),
+    ("top-level torch.Stream alias",
+     "import torch\ndef kernel_fn(a, b):\n    s = torch.Stream()\n    return a + b\n",
+     "delegation"),
 ]
 
 
