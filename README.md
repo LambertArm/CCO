@@ -14,6 +14,7 @@ measured the same way for everyone.
 - **Normal (exact)** engine — the frontier you must beat: [`matmul/`](matmul/)
 - **Smart (approximate)** strategies — where you contribute: [`strategy/`](strategy/)
 - **The scorer** — one honest number per strategy: [`eval/`](eval/)
+- **Landing page** — the project overview site: [`index/index.html`](index/index.html)
 
 Reference setup: **`12000 × 12000`** matrices, **full-rank** (random) data, on an
 **A100 (80 GB)** GPU via PyTorch.

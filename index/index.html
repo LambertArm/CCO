@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCO (Cuda-Compute-OSS) — Sub-Quadratic Attention for Transformer LLMs</title>
+<meta name="description" content="CCO (Cuda-Compute-OSS) replaces the O(n²) self-attention bottleneck with open-source, hardware-validated sub-quadratic kernels — delivered as a drop-in library and commercial API.">
+<style>
+  :root{
+    --bg:#0a0f1c;
+    --bg-2:#0d1424;
+    --panel:#111a2e;
+    --panel-2:#0f1830;
+    --line:rgba(255,255,255,.09);
+    --line-strong:rgba(255,255,255,.16);
+    --ink:#eaf1fb;
+    --muted:#9db0cc;
+    --muted-2:#6f83a3;
+    --accent:#4f8cf5;
+    --accent-2:#37d3e0;
+    --accent-grad:linear-gradient(100deg,#4f8cf5,#37d3e0);
+    --ok:#48d597;
+    --radius:16px;
+    --maxw:1140px;
+    --serif:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  section{position:relative}
+  .eyebrow{
+    font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-2);margin-bottom:16px;font-weight:600;
+  }
+  h1,h2,h3{line-height:1.12;letter-spacing:-.02em;font-weight:700}
+  .grad{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;
+    padding:13px 22px;border-radius:11px;font-weight:600;font-size:15px;
+    border:1px solid transparent;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,background .16s ease,border-color .16s;
+    white-space:nowrap;
+  }
+  .btn-primary{background:var(--accent-grad);color:#05203a;box-shadow:0 8px 26px -10px rgba(79,140,245,.7)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 34px -12px rgba(79,140,245,.85)}
+  .btn-ghost{background:rgba(255,255,255,.04);border-color:var(--line-strong);color:var(--ink)}
+  .btn-ghost:hover{background:rgba(255,255,255,.09);transform:translateY(-2px)}
+  .btn svg{width:16px;height:16px}
+
+  /* ---------- Nav ---------- */
+  header.nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(10,15,28,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:66px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:18px;letter-spacing:-.01em}
+  .logo{width:30px;height:30px;border-radius:8px;background:var(--accent-grad);display:grid;place-items:center;color:#05203a;font-family:var(--mono);font-weight:800;font-size:15px}
+  .nav-links{display:flex;align-items:center;gap:30px}
+  .nav-links a{font-size:14.5px;color:var(--muted);transition:color .15s}
+  .nav-links a:hover{color:var(--ink)}
+  .nav-cta{display:flex;align-items:center;gap:14px}
+  .nav-toggle{display:none;background:none;border:0;color:var(--ink);cursor:pointer}
+  .nav-toggle svg{width:26px;height:26px}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:96px 0 64px;position:relative;overflow:hidden}
+  .hero::before{
+    content:"";position:absolute;inset:0;z-index:0;
+    background:
+      radial-gradient(680px 420px at 80% -8%,rgba(55,211,224,.16),transparent 60%),
+      radial-gradient(720px 480px at 8% 4%,rgba(79,140,245,.20),transparent 62%);
+    pointer-events:none;
+  }
+  .hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+  .hero h1{font-size:clamp(38px,5.4vw,66px);margin:18px 0 22px}
+  .hero p.lead{font-size:19px;color:var(--muted);max-width:540px;margin-bottom:32px}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+  .hero-note{margin-top:20px;font-size:13.5px;color:var(--muted-2);display:flex;align-items:center;gap:8px}
+  .hero-note .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(72,213,151,.16)}
+
+  /* code card */
+  .code-card{
+    background:linear-gradient(180deg,rgba(20,30,52,.95),rgba(12,20,38,.95));
+    border:1px solid var(--line-strong);border-radius:var(--radius);
+    box-shadow:0 40px 80px -40px rgba(0,0,0,.8);overflow:hidden;
+  }
+  .code-top{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+  .code-top .cdot{width:11px;height:11px;border-radius:50%}
+  .code-top .cdot:nth-child(1){background:#ff5f56}.code-top .cdot:nth-child(2){background:#ffbd2e}.code-top .cdot:nth-child(3){background:#27c93f}
+  .code-top .cfile{margin-left:10px;font-family:var(--mono);font-size:12.5px;color:var(--muted-2)}
+  pre{font-family:var(--mono);font-size:13px;line-height:1.75;padding:20px;overflow-x:auto;color:#cdd9ee}
+  .c-key{color:#7cc4ff}.c-fn{color:#37d3e0}.c-str{color:#9ff0c1}.c-com{color:#5f7290}.c-del{color:#ff8a8a}.c-add{color:#8ff0b6}
+
+  /* ---------- Stat band ---------- */
+  .stats{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg-2)}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+  .stat{padding:34px 24px;text-align:center;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  .stat .n{font-size:34px;font-weight:800;letter-spacing:-.03em}
+  .stat .l{font-size:13.5px;color:var(--muted);margin-top:6px}
+
+  /* ---------- Sections ---------- */
+  .sec{padding:96px 0}
+  .sec-head{max-width:680px;margin-bottom:52px}
+  .sec-head.center{margin-left:auto;margin-right:auto;text-align:center}
+  .sec-head h2{font-size:clamp(28px,3.6vw,42px);margin:14px 0 16px}
+  .sec-head p{font-size:17.5px;color:var(--muted)}
+
+  .cards{display:grid;gap:22px}
+  .cols-3{grid-template-columns:repeat(3,1fr)}
+  .cols-2{grid-template-columns:repeat(2,1fr)}
+  .cols-4{grid-template-columns:repeat(4,1fr)}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:28px;transition:transform .2s ease,border-color .2s ease,background .2s;
+  }
+  .card:hover{transform:translateY(-4px);border-color:var(--line-strong);background:var(--panel-2)}
+  .card .ico{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;margin-bottom:18px;
+    background:rgba(79,140,245,.12);border:1px solid rgba(79,140,245,.25)}
+  .card .ico svg{width:22px;height:22px;stroke:var(--accent-2)}
+  .card h3{font-size:19px;margin-bottom:9px}
+  .card p{font-size:15px;color:var(--muted)}
+  .card .kpi{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--accent-2);margin-bottom:6px;letter-spacing:-.02em}
+
+  /* problem cards variant */
+  .scale-card .kpi{font-size:30px}
+  .scale-card .sub{font-size:13px;color:var(--muted-2);font-family:var(--mono)}
+
+  /* ---------- Flow / steps ---------- */
+  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;counter-reset:step}
+  .step{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px}
+  .step .num{font-family:var(--mono);font-size:13px;color:var(--accent-2);font-weight:700;letter-spacing:.1em}
+  .step h3{font-size:17.5px;margin:12px 0 8px}
+  .step p{font-size:14.5px;color:var(--muted)}
+  .step .arrow{position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--muted-2);z-index:2}
+  .step .arrow svg{width:22px;height:22px}
+  .step:last-child .arrow{display:none}
+
+  /* ---------- Split (technical) ---------- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+  .feature-list{list-style:none;margin-top:26px;display:grid;gap:16px}
+  .feature-list li{display:flex;gap:13px;align-items:flex-start;font-size:15.5px;color:var(--muted)}
+  .feature-list li b{color:var(--ink);font-weight:600}
+  .check{flex:none;width:22px;height:22px;border-radius:50%;background:rgba(72,213,151,.14);display:grid;place-items:center;margin-top:2px}
+  .check svg{width:13px;height:13px;stroke:var(--ok)}
+
+  .eq{font-family:var(--mono);font-size:14px;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:10px;padding:14px 16px;color:#bfe0ff;margin:6px 0 4px;overflow-x:auto}
+
+  /* ---------- Roadmap timeline ---------- */
+  .timeline{display:grid;gap:0}
+  .tl-row{display:grid;grid-template-columns:150px 1fr;gap:28px;padding:26px 0;border-top:1px solid var(--line)}
+  .tl-row:last-child{border-bottom:1px solid var(--line)}
+  .tl-phase{font-family:var(--mono);color:var(--accent-2);font-size:14px;font-weight:600}
+  .tl-phase .ph-time{display:block;color:var(--muted-2);font-size:12.5px;margin-top:4px}
+  .tl-body h3{font-size:18px;margin-bottom:6px}
+  .tl-body p{font-size:15px;color:var(--muted)}
+  .tl-tags{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .tag{font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted)}
+
+  /* ---------- Pricing ---------- */
+  .price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start}
+  .price{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:30px 26px;position:relative}
+  .price.pop{border-color:rgba(79,140,245,.5);background:linear-gradient(180deg,rgba(79,140,245,.09),var(--panel))}
+  .price .badge{position:absolute;top:-11px;left:26px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:var(--accent-grad);color:#05203a;padding:4px 11px;border-radius:999px;font-weight:700}
+  .price .tier{font-size:14px;font-family:var(--mono);color:var(--accent-2);letter-spacing:.08em;text-transform:uppercase}
+  .price .who{color:var(--muted-2);font-size:13.5px;margin:4px 0 22px}
+  .price ul{list-style:none;display:grid;gap:13px;margin:22px 0 26px}
+  .price li{display:flex;gap:11px;font-size:14.5px;color:var(--muted)}
+  .price li svg{flex:none;width:18px;height:18px;stroke:var(--ok);margin-top:2px}
+  .price .btn{width:100%;justify-content:center}
+
+  /* ---------- CTA ---------- */
+  .cta{padding:80px 0}
+  .cta-box{
+    position:relative;overflow:hidden;border-radius:26px;padding:64px 48px;text-align:center;
+    background:linear-gradient(120deg,rgba(79,140,245,.16),rgba(55,211,224,.10));
+    border:1px solid var(--line-strong);
+  }
+  .cta-box::before{content:"";position:absolute;inset:0;background:radial-gradient(500px 260px at 50% -20%,rgba(55,211,224,.22),transparent);pointer-events:none}
+  .cta-box h2{font-size:clamp(28px,4vw,44px);margin-bottom:16px;position:relative}
+  .cta-box p{color:var(--muted);font-size:18px;max-width:560px;margin:0 auto 30px;position:relative}
+  .cta-box .hero-cta{justify-content:center;position:relative}
+
+  /* ---------- Footer ---------- */
+  footer{border-top:1px solid var(--line);background:var(--bg-2);padding:56px 0 34px}
+  .foot-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:32px;margin-bottom:40px}
+  footer h4{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);margin-bottom:16px}
+  footer ul{list-style:none;display:grid;gap:11px}
+  footer a{font-size:14.5px;color:var(--muted);transition:color .15s}
+  footer a:hover{color:var(--ink)}
+  .foot-brand p{color:var(--muted);font-size:14.5px;max-width:280px;margin-top:14px}
+  .foot-bottom{border-top:1px solid var(--line);padding-top:22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;color:var(--muted-2);font-size:13.5px}
+  .disclaimer{font-size:12px;color:var(--muted-2);max-width:760px;margin-top:14px;line-height:1.6}
+
+  /* ---------- Reveal ---------- */
+  body.reveal-on .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  body.reveal-on .reveal.in{opacity:1;transform:none}
+
+  /* ---------- Responsive ---------- */
+  @media(max-width:960px){
+    .hero-grid{grid-template-columns:1fr;gap:40px}
+    .split{grid-template-columns:1fr;gap:34px}
+    .flow{grid-template-columns:repeat(2,1fr)}
+    .step .arrow{display:none}
+    .cols-4{grid-template-columns:repeat(2,1fr)}
+    .foot-grid{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:720px){
+    .nav-links,.nav-cta .btn{display:none}
+    .nav-toggle{display:block}
+    .stats-grid{grid-template-columns:repeat(2,1fr)}
+    .stat:nth-child(2){border-right:0}
+    .stat{border-bottom:1px solid var(--line)}
+    .cols-3,.cols-2,.price-grid,.flow,.cols-4{grid-template-columns:1fr}
+    .tl-row{grid-template-columns:1fr;gap:12px}
+    .sec{padding:72px 0}
+    .hero{padding:64px 0 48px}
+    .mobile-open .nav-links{display:flex;position:absolute;top:66px;left:0;right:0;flex-direction:column;gap:0;background:var(--bg-2);border-bottom:1px solid var(--line);padding:8px 24px 20px}
+    .mobile-open .nav-links a{padding:13px 0;border-bottom:1px solid var(--line);width:100%}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top"><span class="logo">C</span> CCO</a>
+    <nav class="nav-links">
+      <a href="#problem">Problem</a>
+      <a href="#how">How it works</a>
+      <a href="#tech">Technology</a>
+      <a href="#product">Product</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="product_whitepaper.pdf">Whitepaper</a>
+      <a class="btn btn-primary" href="#pricing">Get API access</a>
+      <button class="nav-toggle" aria-label="Menu" onclick="document.body.classList.toggle('mobile-open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<span id="top"></span>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="reveal">
+      <div class="eyebrow">Sub-quadratic attention · Drop-in GPU kernels</div>
+      <h1>Break the <span class="grad">O(n²)</span> wall in Transformer LLMs.</h1>
+      <p class="lead">CCO delivers open-source, hardware-validated attention kernels that match standard accuracy while running in sub-quadratic time and memory — as a drop-in library and a commercial API.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#pricing">Get API access
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a class="btn btn-ghost" href="product_whitepaper.pdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+          Download whitepaper
+        </a>
+      </div>
+      <div class="hero-note"><span class="dot"></span> Deterministic, hardware-measured benchmarks — no LLM-as-a-judge.</div>
+    </div>
+
+    <div class="reveal code-card" style="transition-delay:.08s">
+      <div class="code-top">
+        <span class="cdot"></span><span class="cdot"></span><span class="cdot"></span>
+        <span class="cfile">model/attention.py</span>
+      </div>
+<pre><span class="c-com"># Standard O(n²) attention — memory explodes at long context</span>
+<span class="c-del">- attn = softmax(Q @ K.T / sqrt(d)) @ V</span>
+
+<span class="c-com"># Drop-in CCO champion kernel — sub-quadratic</span>
+<span class="c-add">+ from cco import attention as fast_attn</span>
+<span class="c-add">+ attn = fast_attn(Q, K, V)</span>
+
+<span class="c-key">assert</span> <span class="c-fn">mse</span>(attn, ground_truth) &lt; <span class="c-str">1e-3</span>   <span class="c-com"># same output</span>
+<span class="c-com"># 128K ctx · ~18% lower inference cost · same GPU</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STAT BAND ============ -->
+<section class="stats">
+  <div class="wrap stats-grid">
+    <div class="stat reveal"><div class="n grad">O(n²)→O(n)</div><div class="l">Quadratic bottleneck, removed</div></div>
+    <div class="stat reveal"><div class="n">1M</div><div class="l">Token context target</div></div>
+    <div class="stat reveal"><div class="n">10–20%</div><div class="l">Lower GPU inference cost</div></div>
+    <div class="stat reveal"><div class="n">100%</div><div class="l">Open-source champion kernels</div></div>
+  </div>
+</section>
+
+<!-- ============ PROBLEM ============ -->
+<section class="sec" id="problem">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">The problem</div>
+      <h2>Attention cost grows with the <span class="grad">square</span> of context.</h2>
+      <p>Self-attention computes an n × n score matrix, so memory and compute explode non-linearly as context grows. Frontier models push the limit with engineering workarounds — not by changing the underlying math.</p>
+    </div>
+    <div class="cards cols-3">
+      <div class="card scale-card reveal">
+        <div class="kpi">64M</div>
+        <div class="sub">8,000 tokens</div>
+        <p style="margin-top:12px">Score values per attention layer — already heavy for real-time inference.</p>
+      </div>
+      <div class="card scale-card reveal" style="transition-delay:.06s">
+        <div class="kpi">16B</div>
+        <div class="sub">128,000 tokens</div>
+        <p style="margin-top:12px">Per layer. Latency and VRAM climb steeply as documents and agent histories grow.</p>
+      </div>
+      <div class="card scale-card reveal" style="transition-delay:.12s">
+        <div class="kpi">1T</div>
+        <div class="sub">1,000,000 tokens</div>
+        <p style="margin-top:12px">Per layer — beyond what is commercially available today. This is the wall.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="sec" id="how" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <div class="eyebrow">How it works</div>
+      <h2>A continuous, winner-take-all engineering competition.</h2>
+      <p>The best GPU engineers in the world compete every cycle to produce faster kernels. An automated engine scores them, the champion ships to production, and revenue funds the next round.</p>
+    </div>
+    <div class="flow">
+      <div class="step reveal">
+        <div class="num">01</div>
+        <h3>Contributors compete</h3>
+        <p>Engineers submit open-source sub-quadratic attention kernels each cycle, on randomly seeded inputs.</p>
+        <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </div>
+      <div class="step reveal" style="transition-delay:.06s">
+        <div class="num">02</div>
+        <h3>Deterministic scoring</h3>
+        <p>An engine re-compiles and benchmarks every kernel for accuracy (MSE), VRAM, and latency on locked hardware.</p>
+        <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </div>
+      <div class="step reveal" style="transition-delay:.12s">
+        <div class="num">03</div>
+        <h3>Champion published</h3>
+        <p>The single best kernel wins the full prize pool and is released to the public library — raising the bar for all.</p>
+        <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </div>
+      <div class="step reveal" style="transition-delay:.18s">
+        <div class="num">04</div>
+        <h3>Revenue reinvests</h3>
+        <p>Enterprises pay to use the champion via API; a share funds a bigger prize pool — and better kernels.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TECHNOLOGY / DROP-IN ============ -->
+<section class="sec" id="tech">
+  <div class="wrap split">
+    <div class="reveal">
+      <div class="eyebrow">The technology</div>
+      <h2 style="font-size:clamp(28px,3.4vw,40px);margin:14px 0 18px">A mathematically valid drop-in replacement.</h2>
+      <p style="color:var(--muted);font-size:16.5px">The attention layer's input and output shapes are identical — <span style="font-family:var(--mono);color:var(--ink)">[n, d]</span>. Any kernel that maps Q, K, V to the correct output <em>without</em> materializing the n × n matrix can replace standard attention with no model retraining.</p>
+      <ul class="feature-list">
+        <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span><b>Near-identical accuracy.</b> Every kernel must pass a hard MSE gate against ground-truth O(n²) output.</span></li>
+        <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span><b>Hardware-real speed.</b> Kernels are written in Triton / CUDA and measured on standardized GPUs — not just in theory.</span></li>
+        <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span><b>Works with your stack.</b> Llama-3, Mistral, Qwen, or any Transformer — swap one layer, keep your weights.</span></li>
+      </ul>
+    </div>
+    <div class="reveal code-card" style="transition-delay:.08s">
+      <div class="code-top">
+        <span class="cdot"></span><span class="cdot"></span><span class="cdot"></span>
+        <span class="cfile">the operation that explodes</span>
+      </div>
+      <div style="padding:26px 24px">
+        <div class="eq">Attention(Q, K, V) = softmax( Q · K<sup>T</sup> / √d ) · V</div>
+        <p style="color:var(--muted);font-size:14.5px;margin:14px 0 18px">The bottleneck is a single intermediate step — <span style="font-family:var(--mono);color:var(--accent-2)">Q · K<sup>T</sup></span>, the n × n score matrix. Because it is only intermediate, replacing it is provably possible.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:14px">
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted-2)">INPUT</div>
+            <div style="font-family:var(--mono);font-size:16px;margin-top:4px">Q, K, V → [n, d]</div>
+          </div>
+          <div style="background:rgba(55,211,224,.06);border:1px solid rgba(55,211,224,.25);border-radius:10px;padding:14px">
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted-2)">OUTPUT</div>
+            <div style="font-family:var(--mono);font-size:16px;margin-top:4px;color:var(--accent-2)">out → [n, d]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRUST / EVALUATION ============ -->
+<section class="sec" id="trust" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Deterministic evaluation</div>
+      <h2>Scored by physics, not opinion.</h2>
+      <p>Every submission passes through a fully automated, three-tier gate. No language model ever judges another — ranking is pure measurement, reproducible by anyone.</p>
+    </div>
+    <div class="cards cols-3">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h3>Tier 1 · Accuracy gate</h3>
+        <p>Mean Squared Error against ground-truth attention. Exceed the precision budget and the kernel scores zero — speed is irrelevant if the output is wrong.</p>
+      </div>
+      <div class="card reveal" style="transition-delay:.06s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
+        <h3>Tier 2 · Scaling proof</h3>
+        <p>Re-run at 128K–256K tokens on locked hardware. Double the sequence length: if latency quadruples, it isn't sub-quadratic — and it's rejected.</p>
+      </div>
+      <div class="card reveal" style="transition-delay:.12s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4 2 7-6.5-4.5L5.5 27"/><path d="M12 2l3 7h7l-5.5 4 2 7L12 15.5 6.5 20l2-7L3 9h7z"/></svg></div>
+        <h3>Tier 3 · Composite score</h3>
+        <p>Among kernels that pass both gates, the highest <span style="font-family:var(--mono);color:var(--accent-2)">accuracy × 1/VRAM × 1/latency</span> takes 100% of the prize. Winner-take-all.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ROADMAP ============ -->
+<section class="sec" id="roadmap">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Roadmap</div>
+      <h2>Difficulty ratchets up as each phase is solved.</h2>
+      <p>Progress is gated by achievement, not a calendar. Early phases are accessible to any skilled GPU engineer; later phases demand production-grade, hardware-tuned kernels.</p>
+    </div>
+    <div class="timeline">
+      <div class="tl-row reveal">
+        <div class="tl-phase">Phase 1<span class="ph-time">Months 1–2</span></div>
+        <div class="tl-body">
+          <h3>Foundation — up to 32K tokens</h3>
+          <p>Adapt existing open-source optimizations (FlashAttention variants, sparse attention) to the CCO format. MSE &lt; 0.01.</p>
+          <div class="tl-tags"><span class="tag">FlashAttention</span><span class="tag">sparse</span><span class="tag">32K ctx</span></div>
+        </div>
+      </div>
+      <div class="tl-row reveal">
+        <div class="tl-phase">Phase 2<span class="ph-time">Months 3–5</span></div>
+        <div class="tl-body">
+          <h3>Log-linear — up to 128K tokens</h3>
+          <p>Novel hybrid approaches required; spectral or low-rank kernels needed to pass the scaling gate. MSE &lt; 0.005.</p>
+          <div class="tl-tags"><span class="tag">spectral</span><span class="tag">low-rank</span><span class="tag">128K ctx</span></div>
+        </div>
+      </div>
+      <div class="tl-row reveal">
+        <div class="tl-phase">Phase 3<span class="ph-time">Months 6–12</span></div>
+        <div class="tl-body">
+          <h3>Million-token — up to 1M tokens</h3>
+          <p>Production-grade kernels with true sub-quadratic VRAM scaling and hardware-specific Triton/CUDA tuning. MSE &lt; 0.001.</p>
+          <div class="tl-tags"><span class="tag">Triton/CUDA</span><span class="tag">1M ctx</span><span class="tag">production</span></div>
+        </div>
+      </div>
+      <div class="tl-row reveal">
+        <div class="tl-phase">Phase 4<span class="ph-time">Ongoing</span></div>
+        <div class="tl-body">
+          <h3>Convergence — arbitrary context</h3>
+          <p>Fine-grained hardware tuning and optional weight co-optimization (LoRA patches) to recover residual approximation error. MSE &lt; 0.0005.</p>
+          <div class="tl-tags"><span class="tag">LoRA patches</span><span class="tag">hardware-tuned</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRODUCT OFFERING ============ -->
+<section class="sec" id="product" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">The product</div>
+      <h2>Two ways to ship faster inference.</h2>
+    </div>
+    <div class="cards cols-2">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg></div>
+        <h3>Open-source kernel library</h3>
+        <p style="margin-bottom:18px">Every cycle's champion is published to a public GitHub repository — the fastest, most accurate, most memory-efficient kernel validated to date. Free to study, fork, and self-host.</p>
+        <ul class="feature-list">
+          <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span>Longer context windows without adding hardware</span></li>
+          <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span>Higher throughput at the same GPU budget</span></li>
+        </ul>
+      </div>
+      <div class="card reveal" style="transition-delay:.06s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
+        <h3>Commercial API</h3>
+        <p style="margin-bottom:18px">Submit your model configuration and receive an optimized, tested attention module — with compatibility testing, regression checks, and versioning handled for you.</p>
+        <ul class="feature-list">
+          <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span>Inference providers (vLLM, SGLang, Fireworks, Together)</span></li>
+          <li><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span>Long-document & long-horizon agent workloads</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section class="sec" id="pricing">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <div class="eyebrow">Pricing</div>
+      <h2>Access the champion kernel.</h2>
+      <p>A 10–20% cut in long-context inference cost is worth millions annually at scale. Pricing sits well below that — and far above our marginal cost.</p>
+    </div>
+    <div class="price-grid">
+      <div class="price reveal">
+        <div class="tier">Standard</div>
+        <div class="who">Startups & mid-size AI teams</div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Monthly API access to current champion</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Integration docs & examples</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Community support</li>
+        </ul>
+        <a class="btn btn-ghost" href="#cta">Start free trial</a>
+      </div>
+      <div class="price pop reveal" style="transition-delay:.06s">
+        <div class="badge">Most popular</div>
+        <div class="tier">Pro</div>
+        <div class="who">Inference providers & enterprise teams</div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Everything in Standard</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Priority updates & SLA guarantees</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Compatibility testing per model family</li>
+        </ul>
+        <a class="btn btn-primary" href="#cta">Get Pro access</a>
+      </div>
+      <div class="price reveal" style="transition-delay:.12s">
+        <div class="tier">Enterprise</div>
+        <div class="who">AI labs, cloud providers, defense</div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Custom integration & private deployment</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Co-developed model-specific weight patches</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Dedicated engineering support</li>
+        </ul>
+        <a class="btn btn-ghost" href="#cta">Contact sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="cta" id="cta">
+  <div class="wrap">
+    <div class="cta-box reveal">
+      <h2>Stop paying the quadratic tax.</h2>
+      <p>Get early access to the champion kernel, or read the full technical whitepaper to see exactly how the competition and economics work.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="mailto:hello@example.com?subject=CCO%20API%20access">Request API access</a>
+        <a class="btn btn-ghost" href="product_whitepaper.pdf">Read the whitepaper</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="#top"><span class="logo">C</span> CCO</a>
+        <p>Cuda-Compute-OSS — open-source, hardware-validated sub-quadratic attention kernels for Transformer LLMs.</p>
+      </div>
+      <div>
+        <h4>Platform</h4>
+        <ul>
+          <li><a href="#problem">The problem</a></li>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#tech">Technology</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="product_whitepaper.pdf">Whitepaper (PDF)</a></li>
+          <li><a href="#roadmap">Roadmap</a></li>
+          <li><a href="#product">Kernel library</a></li>
+          <li><a href="#trust">Evaluation</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#cta">Contact</a></li>
+          <li><a href="#cta">Request access</a></li>
+          <li><a href="#top">About</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 CCO (Cuda-Compute-OSS). All rights reserved.</span>
+      <span>Built from the CCO whitepaper · Draft v0.1</span>
+    </div>
+    <p class="disclaimer">This site presents a working draft product concept. Technical parameters (MSE thresholds, sequence lengths, scoring weights, revenue-reinvestment ratios) are subject to revision based on testnet results and feedback. Nothing herein constitutes financial advice. Replace the placeholder contact details (e.g. hello@example.com) with your own before launch.</p>
+  </div>
+</footer>
+
+<script>
+  // Progressive reveal — content is fully visible if JS is disabled.
+  document.body.classList.add('reveal-on');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  },{threshold:.12,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // Close mobile menu on link tap
+  document.querySelectorAll('.nav-links a').forEach(a=>a.addEventListener('click',()=>document.body.classList.remove('mobile-open')));
+</script>
+</body>
+</html>
