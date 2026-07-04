@@ -18,3 +18,5 @@ Changes should be easy to compare against the previous transform version.
 - put transform evolution in `kernels/src/transform/`
 - put correctness-oriented CPU truth code in `runtime/src/reference/`
 - put orchestration and pipeline logic in `runtime/src/`
+
+CCO currently targets matrix-only transforms and GEMM only.

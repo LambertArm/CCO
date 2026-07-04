@@ -1,10 +1,10 @@
 # Cuda-Compute-OSS
 
-CCO is a CUDA-first open source repo for matrix multiply optimization.
+CCO is a CUDA-first open source repo for GEMM optimization and matrix-only transform strategies.
 
 The repo is organized around two primary subsystems:
 
-- `kernels/` holds the versioned CUDA transform and compute kernels.
+- `kernels/` holds the CUDA matrix transform implementation and GEMM kernels.
 - `runtime/` holds host orchestration, pipeline logic, and CPU references.
 - `bench/` measures raw performance.
 - `eval/` compares versions with stable rules.
@@ -35,11 +35,11 @@ Cuda-Compute-OSS/
 
 ## First Version
 
-The repo currently keeps only the first transform version in `kernels/src/transform/`.
+The repo currently keeps only the first matrix transform version in `kernels/src/transform/`.
 
 - `0.0.0` implemented in `00_baseline.cu`
 
-Future versions can be added later, but the repo now stays intentionally focused on a single baseline transform so the kernel/runtime structure is clean from the start.
+Future versions can be added later, but the repo now stays intentionally focused on a single matrix transform baseline and GEMM-only compute path so the structure is clean from the start.
 
 ## Build
 

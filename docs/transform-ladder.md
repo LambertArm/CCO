@@ -1,6 +1,6 @@
 # Transform Ladder
 
-CCO starts from one explicit transform version.
+CCO starts from one explicit matrix transform version.
 
 The versioned transform files live in `kernels/src/transform/`.
 
@@ -13,4 +13,4 @@ The versioned transform files live in `kernels/src/transform/`.
 
 ## Current Version
 
-- `0.0.0`: simple reference reduction path implemented in `00_baseline.cu`
+- `0.0.0`: simple reference matrix reduction path implemented in `00_baseline.cu`

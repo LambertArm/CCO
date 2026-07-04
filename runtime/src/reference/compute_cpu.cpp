@@ -22,18 +22,4 @@ std::vector<float> run_gemm(const std::vector<float>& a,
     return out;
 }
 
-std::vector<float> run_gemv(const std::vector<float>& a,
-                            const std::vector<float>& x,
-                            MatrixShape a_shape) {
-    std::vector<float> out(a_shape.rows, 0.0f);
-    for (std::size_t row = 0; row < a_shape.rows; ++row) {
-        float acc = 0.0f;
-        for (std::size_t col = 0; col < a_shape.cols; ++col) {
-            acc += a[row * a_shape.cols + col] * x[col];
-        }
-        out[row] = acc;
-    }
-    return out;
-}
-
 } // namespace cco
