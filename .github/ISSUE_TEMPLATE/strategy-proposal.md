@@ -1,31 +1,31 @@
 ---
 name: Strategy proposal
-about: Propose a new smart strategy / transform to lower matrix-multiply cost
-title: "[strategy] "
+about: Propose a new CCO transform version or transform-path enhancement
+title: "[transform] "
 labels: "type:strategy, status:triage"
 ---
 
 ## Idea
 
-<!-- What subspace / transform / scheme, and why it should compress this data cheaply. -->
+<!-- What transform change is proposed, and why it should improve the CCO ladder. -->
 
-## Target regime
+## Target path
 
-- Matrix content: <!-- low-rank / smooth / structured / … -->
-- Expected `N`, `M`, dtype, device:
+- Transform version to extend:
+- Expected matrix sizes:
+- Expected `n -> m` mapping:
+- Expected dtype and GPU:
 
-## Expected trade-off
+## Expected outcome
 
-Against the exact baseline, on the target regime, which axes do you expect to
-move? (Per the one rule, an improvement reduces **all** cost axes with accuracy
-held — see [BENCHMARKS.md](../../BENCHMARKS.md).)
+Against the previous ladder version, what should improve?
 
-| aspect          | vs exact (expect) |
-|-----------------|-------------------|
-| accuracy        |                   |
-| time complexity |                   |
-| latency         |                   |
-| VRAM usage      |                   |
+| aspect | expectation |
+|---|---|
+| reconstruction error | |
+| latency | |
+| memory use | |
+| implementation complexity | |
 
 ## Notes
 

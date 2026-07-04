@@ -1,0 +1,3 @@
+accuracy_floor: 0.95
+max_latency_regression_pct: 2.0
+max_memory_regression_pct: 2.0

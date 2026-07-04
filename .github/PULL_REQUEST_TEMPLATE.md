@@ -1,33 +1,30 @@
 <!--
-CCO PR scorecard. The numbers, not the prose, decide.
-Read CONTRIBUTING.md and BENCHMARKS.md before filling this in.
-The one rule: an improvement reduces every cost axis WITHOUT losing accuracy.
+CCO PR summary for the CUDA-first repo layout.
+Read docs/contributing.md and docs/evaluation.md before filling this in.
 -->
 
 ## Summary
 
-<!-- What the strategy does, why it is cheaper, and the regime it targets. -->
+<!-- What transform or compute change was made, and which ladder version it affects. -->
 
 ## Result
 
-| metric          | value          |
-|-----------------|----------------|
-| accuracy        |                |
-| time complexity |                |
-| latency         |                |
-| VRAM usage      |                |
+| metric | value |
+|---|---|
+| transform version | |
+| matrix shape(s) | |
+| latency | |
+| reconstruction error | |
+| memory estimate | |
 
 <!--
-accuracy        — bounded Frobenius accuracy in [0,1] from `python -m eval`
-time complexity — analytic O(·) and the fitted N^p from `--sweep`
-latency         — mean wall-clock ms of the smart multiply, GPU-synchronized
-VRAM usage      — peak incremental GPU memory during the multiply
+Use the current `bench/` and `eval/` outputs for these numbers.
 -->
 
-**Regime measured:** N=12000, dtype=fp32, fill=full-rank, rank M=____, device=A100 (80 GB)
+**Environment measured:** GPU=____, CUDA=____, dtype=____
 
 <details>
-<summary>Raw scorecard (paste <code>python -m eval …</code> output or <code>--json</code>)</summary>
+<summary>Raw bench / eval output</summary>
 
 ```
 <paste here>
@@ -36,12 +33,7 @@ VRAM usage      — peak incremental GPU memory during the multiply
 
 ## Checklist
 
-- [ ] I ran the scorer on **unseen** couples — no hardcoding of seeds/matrices.
-- [ ] Accuracy and latency come from the **same run** at the **same dtype**.
-- [ ] This is an **improvement** (every cost axis down, accuracy held) **or** I
-      state honestly which axis it trades — see the one rule in CONTRIBUTING.md.
-- [ ] Correctness gates pass:
-      `python eval/tests/test_eval.py`,
-      `python strategy/tests/test_subspace.py`,
-      `python tests/test_correctness.py`.
-- [ ] I named the device and dtype so a reviewer can reproduce the numbers.
+- [ ] I ran the relevant `bench/` targets for this change.
+- [ ] I ran the relevant `eval/` command for this change.
+- [ ] I updated docs if the transform ladder changed.
+- [ ] I included the GPU, CUDA version, and dtype used for the measurements.
