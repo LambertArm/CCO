@@ -25,14 +25,27 @@ def _tiles(n: int, T: int):
     return [(s, min(T, n - s)) for s in range(0, n, T)]
 
 
+def _tile_operand_bytes(cfg: Config) -> int:
+    """Storage bytes per element for one operand tile resident on the device."""
+    if cfg.np_dtype == np.float16 and cfg.accumulate_fp32:
+        # _gemm_tiled_sync upcasts fp16 operand tiles to fp32 before bmm.
+        return np.dtype(np.float32).itemsize
+    return cfg.item_bytes
+
+
+def _tile_workspace_bytes_per_elem(cfg: Config) -> int:
+    """Device bytes per T×T element in one tiled (i, j, k) accumulation step."""
+    return cfg.acc_dtype.itemsize + 2 * _tile_operand_bytes(cfg)
+
+
 def auto_tile(n: int, cfg: Config, backend: Backend) -> int:
     """Pick tile edge T so the working set fits in the VRAM budget.
 
     Working set per (i,j,k) step on the device:
-        acc (T x T, acc_dtype)  +  (A-tile + B-tile) (T x T, item)
+        acc (T x T, acc_dtype)  +  (A-tile + B-tile) (T x T, operand bytes)
     """
     budget = int(backend.free_compute_bytes() * cfg.vram_fraction)
-    per_elem = cfg.acc_dtype.itemsize + 2 * cfg.item_bytes
+    per_elem = _tile_workspace_bytes_per_elem(cfg)
     t = int(math.sqrt(max(1, budget) / per_elem))
     t = min(t, n)
     # Round down to a multiple of 128 for nicer GEMM shapes; keep a sane floor.
