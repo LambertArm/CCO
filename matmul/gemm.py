@@ -91,6 +91,10 @@ def _gemm_tiled_sync(A, B, C, backend: Backend, cfg: Config, T: int) -> None:
 
                 a_dev = backend.to_device(a_host)
                 b_dev = backend.to_device(b_host)
+                if cfg.np_dtype == np.float16 and cfg.accumulate_fp32:
+                    # Mirror _gemm_in_core: accumulate tile products in fp32.
+                    a_dev = a_dev.astype(np.float32)
+                    b_dev = b_dev.astype(np.float32)
                 prod = backend.matmul(a_dev, b_dev)
                 if prod.dtype != acc_dtype:
                     prod = prod.astype(acc_dtype)

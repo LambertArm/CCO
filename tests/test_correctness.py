@@ -78,6 +78,27 @@ def test_tiled_fp16_accumulates_fp32():
     assert np.linalg.norm(C - ref) / np.linalg.norm(ref) < 5e-2
 
 
+def test_fp16_incore_tiled_parity():
+    """In-core and tiled must agree when accumulate_fp32=True (default)."""
+    n, T = 256, 64
+    cfg = Config(dtype="fp16", accumulate_fp32=True, verbose=False)
+    backend = Backend(verbose=False)
+    rng = np.random.default_rng(0)
+    A = rng.standard_normal((n, n)).astype(cfg.np_dtype)
+    B = rng.standard_normal((n, n)).astype(cfg.np_dtype)
+
+    C_incore = np.zeros((n, n), dtype=cfg.np_dtype)
+    gemm._gemm_in_core(A, B, C_incore, backend, cfg)
+
+    C_tiled = np.zeros((n, n), dtype=cfg.np_dtype)
+    gemm._gemm_tiled_sync(A, B, C_tiled, backend, cfg, T)
+
+    denom = np.linalg.norm(C_incore.astype(np.float64))
+    rel = np.linalg.norm(
+        (C_incore - C_tiled).astype(np.float64)) / max(denom, 1e-12)
+    assert rel < 1e-6
+
+
 def test_tile_larger_than_n():
     # T >= n must degenerate to a single block and still be correct.
     C, ref = _run_tiled(50, 128, "fp32")
