@@ -14,14 +14,11 @@ constexpr const char* kBaselineVersion = "0.0.0";
 void validate_transform_inputs(const std::vector<float>& matrix,
                                MatrixShape shape,
                                const TransformConfig& config) {
-    if (!is_square_matrix_shape(shape)) {
-        throw std::invalid_argument("0.0.0 transform expects a square matrix");
-    }
     if (!is_valid_transform_config(config)) {
         throw std::invalid_argument("invalid transform config for 0.0.0");
     }
-    if (shape.rows != config.n || shape.cols != config.n) {
-        throw std::invalid_argument("transform config n must match the input matrix shape");
+    if (shape.rows != config.original_shape.rows || shape.cols != config.original_shape.cols) {
+        throw std::invalid_argument("transform config original_shape must match the input matrix shape");
     }
     if (matrix.size() != shape.rows * shape.cols) {
         throw std::invalid_argument("transform received mismatched matrix storage");
@@ -31,8 +28,8 @@ void validate_transform_inputs(const std::vector<float>& matrix,
 } // namespace
 
 TransformResult run_transform(const TransformConfig& config) {
-    std::vector<float> zero(config.n * config.n, 0.0f);
-    return run_transform(zero, {config.n, config.n}, config);
+    std::vector<float> zero(config.original_shape.rows * config.original_shape.cols, 0.0f);
+    return run_transform(zero, config.original_shape, config);
 }
 
 TransformResult run_transform(const std::vector<float>& matrix,
@@ -43,26 +40,28 @@ TransformResult run_transform(const std::vector<float>& matrix,
     TransformResult result;
     result.version = kBaselineVersion;
     result.original_shape = shape;
-    result.reduced_shape = {config.m, config.m};
-    result.block_ratio = config.n / config.m;
-    result.reduced_data.assign(config.m * config.m, 0.0f);
+    result.transformed_shape = config.transformed_shape;
+    result.row_block_ratio = config.original_shape.rows / config.transformed_shape.rows;
+    result.col_block_ratio = config.original_shape.cols / config.transformed_shape.cols;
+    result.transformed_data.assign(config.transformed_shape.rows * config.transformed_shape.cols, 0.0f);
 
-    const std::size_t n = shape.rows;
-    const std::size_t m = config.m;
-    const std::size_t block = result.block_ratio;
+    const std::size_t transformed_rows = config.transformed_shape.rows;
+    const std::size_t transformed_cols = config.transformed_shape.cols;
+    const std::size_t row_block = result.row_block_ratio;
+    const std::size_t col_block = result.col_block_ratio;
 
-    for (std::size_t row_block = 0; row_block < m; ++row_block) {
-        for (std::size_t col_block = 0; col_block < m; ++col_block) {
+    for (std::size_t row_index = 0; row_index < transformed_rows; ++row_index) {
+        for (std::size_t col_index = 0; col_index < transformed_cols; ++col_index) {
             double acc = 0.0;
-            for (std::size_t row = 0; row < block; ++row) {
-                for (std::size_t col = 0; col < block; ++col) {
-                    const std::size_t src_row = row_block * block + row;
-                    const std::size_t src_col = col_block * block + col;
-                    acc += matrix[src_row * n + src_col];
+            for (std::size_t row = 0; row < row_block; ++row) {
+                for (std::size_t col = 0; col < col_block; ++col) {
+                    const std::size_t src_row = row_index * row_block + row;
+                    const std::size_t src_col = col_index * col_block + col;
+                    acc += matrix[src_row * shape.cols + src_col];
                 }
             }
-            result.reduced_data[row_block * m + col_block] =
-                static_cast<float>(acc / static_cast<double>(block * block));
+            result.transformed_data[row_index * transformed_cols + col_index] =
+                static_cast<float>(acc / static_cast<double>(row_block * col_block));
         }
     }
 
@@ -70,19 +69,24 @@ TransformResult run_transform(const std::vector<float>& matrix,
 }
 
 std::vector<float> reconstruct_matrix(const TransformResult& result) {
-    const std::size_t n = result.original_shape.rows;
-    const std::size_t m = result.reduced_shape.rows;
-    const std::size_t block = result.block_ratio == 0 ? (n / m) : result.block_ratio;
-    std::vector<float> out(n * n, 0.0f);
+    const std::size_t rows = result.original_shape.rows;
+    const std::size_t cols = result.original_shape.cols;
+    const std::size_t transformed_rows = result.transformed_shape.rows;
+    const std::size_t transformed_cols = result.transformed_shape.cols;
+    const std::size_t row_block =
+        result.row_block_ratio == 0 ? (rows / transformed_rows) : result.row_block_ratio;
+    const std::size_t col_block =
+        result.col_block_ratio == 0 ? (cols / transformed_cols) : result.col_block_ratio;
+    std::vector<float> out(rows * cols, 0.0f);
 
-    for (std::size_t row_block = 0; row_block < m; ++row_block) {
-        for (std::size_t col_block = 0; col_block < m; ++col_block) {
-            const float value = result.reduced_data[row_block * m + col_block];
-            for (std::size_t row = 0; row < block; ++row) {
-                for (std::size_t col = 0; col < block; ++col) {
-                    const std::size_t dst_row = row_block * block + row;
-                    const std::size_t dst_col = col_block * block + col;
-                    out[dst_row * n + dst_col] = value;
+    for (std::size_t row_index = 0; row_index < transformed_rows; ++row_index) {
+        for (std::size_t col_index = 0; col_index < transformed_cols; ++col_index) {
+            const float value = result.transformed_data[row_index * transformed_cols + col_index];
+            for (std::size_t row = 0; row < row_block; ++row) {
+                for (std::size_t col = 0; col < col_block; ++col) {
+                    const std::size_t dst_row = row_index * row_block + row;
+                    const std::size_t dst_col = col_index * col_block + col;
+                    out[dst_row * cols + dst_col] = value;
                 }
             }
         }

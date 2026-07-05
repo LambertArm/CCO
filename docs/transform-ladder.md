@@ -1,6 +1,6 @@
 # Transform Ladder
 
-CCO starts from one explicit matrix transform version.
+CCO starts from one explicit transform version for flexible `(n, d) -> (n', d')` attention preprocessing.
 
 The versioned transform files live in `kernels/src/transform/`.
 
@@ -13,4 +13,13 @@ The versioned transform files live in `kernels/src/transform/`.
 
 ## Current Version
 
-- `0.0.0`: simple reference matrix reduction path implemented in `00_baseline.cu`
+- `0.0.0`: simple rectangular block-mean transform implemented in `00_baseline.cu`
+
+## Shape Contract
+
+- `Q`, `K`, and `V` start in shape `(n, d)`
+- the transform maps them into `(n', d')`
+- attention runs fully in the transformed space
+- the output is reconstructed back to `(n, d)`
+- the current baseline accepts any `(n', d')` that evenly divide `(n, d)`
+- if `(n', d')` are omitted in runtime or eval config, the active transform version supplies its own default policy

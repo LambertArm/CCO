@@ -10,10 +10,10 @@ int main() {
     if (!transforms.empty()) {
         std::cout << "active transform version: " << transforms.front() << '\n';
     }
-    const std::vector<float> matrix(64 * 64, 1.0f);
-    cco::TransformConfig config{"0.0.0", 64, 16};
-    const auto transformed = cco::run_transform(matrix, {64, 64}, config);
-    std::cout << "reduced shape: " << transformed.reduced_shape.rows
-              << "x" << transformed.reduced_shape.cols << '\n';
+    const std::vector<float> matrix(128 * 64, 1.0f);
+    cco::TransformConfig config{"0.0.0", {128, 64}, {32, 16}};
+    const auto transformed = cco::run_transform(matrix, {128, 64}, config);
+    std::cout << "transformed shape: " << transformed.transformed_shape.rows
+              << "x" << transformed.transformed_shape.cols << '\n';
     return 0;
 }

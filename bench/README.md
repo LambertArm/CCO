@@ -7,13 +7,14 @@ This is the measurement layer, not the policy layer:
 - `bench/` answers: what happened in one run?
 - `eval/` answers: is this version acceptable compared with the baseline?
 
+The active benchmark contract is flexible transformed attention: `(n, d) -> (n', d') -> attention -> (n, d)`.
+
 ## Current Layout
 
 ```text
 bench/
 ├── README.md
 ├── bench_transform.cpp
-├── bench_compute.cpp
 ├── bench_attention.cpp
 ├── bench_pipeline.cpp
 ├── shapes.yaml
@@ -27,6 +28,6 @@ bench/scripts/bench.sh
 bench/scripts/accuracy.sh
 ```
 
-The current benchmark binaries are still scaffolds, but this layout is ready for the first real GEMM and matrix-transform measurements.
+The current benchmark binaries are lightweight, but this layout is ready for direct transformed-attention measurements.
 
-`bench_attention.cpp` exists only as a future extension point. The main benchmark focus right now is GEMM plus matrix transform behavior.
+`bench_attention.cpp` and `bench_pipeline.cpp` now exercise the active transformed-attention path.

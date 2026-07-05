@@ -12,7 +12,7 @@ Read docs/contributing.md and docs/evaluation.md before filling this in.
 | metric | value |
 |---|---|
 | transform version | |
-| matrix shape(s) | |
+| attention shape(s) | |
 | latency | |
 | reconstruction error | |
 | memory estimate | |
@@ -34,6 +34,6 @@ Use the current `bench/` and `eval/` outputs for these numbers.
 ## Checklist
 
 - [ ] I ran the relevant `bench/` targets for this change.
-- [ ] I ran `python3 eval/run_eval_gpu.py` for this change.
+- [ ] I ran `bash scripts/eval.sh` for this change.
 - [ ] I updated docs if the transform ladder changed.
 - [ ] I included the GPU, CUDA version, and dtype used for the measurements.

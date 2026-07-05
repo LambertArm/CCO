@@ -5,6 +5,6 @@
 namespace cco {
 
 RunMetrics make_placeholder_metrics();
-double estimate_memory_mb(MatrixShape full_shape, MatrixShape reduced_shape);
+double estimate_attention_memory_mb(AttentionShape full_shape, AttentionShape transformed_shape);
 
 } // namespace cco

@@ -41,7 +41,7 @@ def main() -> None:
         "verdict": "pass" if thresholds and shapes and baseline_exists else "fail",
         "notes": [
             "CPU precheck validates repo configuration only.",
-            "Real transform evaluation and matrix computation are GPU-based in run_eval_gpu.py.",
+            "Real transformed-attention evaluation is GPU-based in run_eval_gpu.py.",
         ],
     }
 

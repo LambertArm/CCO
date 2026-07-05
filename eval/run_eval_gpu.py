@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import platform
+import secrets
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -15,6 +15,18 @@ from typing import Any
 import torch
 import yaml
 
+DEFAULT_N = 4096
+DEFAULT_D = 256
+DEFAULT_TRANSFORM_VERSION = "0.0.0"
+DEFAULT_TRANSFORMED_SEQ_DIVISOR = 4
+DEFAULT_TRANSFORMED_DIM_DIVISOR = 4
+INPUT_VALUE_MIN = -25.0
+INPUT_VALUE_MAX = 25.0
+DTYPE_SPECS: list[tuple[str, torch.dtype]] = [
+    ("float16", torch.float16),
+    ("float32", torch.float32),
+]
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -22,11 +34,7 @@ def repo_root() -> Path:
 
 def git_commit(cwd: Path) -> str:
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=cwd,
-            text=True,
-        ).strip()
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=cwd, text=True).strip()
     except Exception:
         return "unknown"
 
@@ -38,7 +46,53 @@ def load_thresholds(path: Path) -> dict[str, float]:
 
 def load_shapes(path: Path) -> list[dict[str, int]]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return [{"n": int(item["n"]), "m": int(item["m"])} for item in data.get("default", [])]
+    return [
+        {
+            "n": int(item.get("n", DEFAULT_N)),
+            "d": int(item.get("d", DEFAULT_D)),
+            "n_transformed": int(item["n_transformed"]) if "n_transformed" in item else (
+                int(item["n_reduced"]) if "n_reduced" in item else 0
+            ),
+            "d_transformed": int(item["d_transformed"]) if "d_transformed" in item else (
+                int(item["d_reduced"]) if "d_reduced" in item else 0
+            ),
+        }
+        for item in data.get("default", [])
+    ]
+
+
+def choose_transformed_extent(original_extent: int, divisor: int) -> int:
+    if original_extent <= 0 or divisor <= 0:
+        return 0
+    candidate = original_extent // divisor
+    if candidate <= 0:
+        return 1
+    if original_extent % candidate == 0:
+        return candidate
+    for probe in range(candidate, 0, -1):
+        if original_extent % probe == 0:
+            return probe
+    return 1
+
+
+def default_transformed_shape(transform_version: str, n: int, d: int) -> tuple[int, int]:
+    if transform_version != DEFAULT_TRANSFORM_VERSION:
+        raise ValueError(f"no default transformed-shape policy registered for version: {transform_version}")
+    return (
+        choose_transformed_extent(n, DEFAULT_TRANSFORMED_SEQ_DIVISOR),
+        choose_transformed_extent(d, DEFAULT_TRANSFORMED_DIM_DIVISOR),
+    )
+
+
+def resolve_case_shape(case: dict[str, int], transform_version: str) -> dict[str, int]:
+    resolved = dict(case)
+    if resolved["n_transformed"] == 0 or resolved["d_transformed"] == 0:
+        resolved["n_transformed"], resolved["d_transformed"] = default_transformed_shape(
+            transform_version,
+            resolved["n"],
+            resolved["d"],
+        )
+    return resolved
 
 
 def gpu_info() -> dict[str, Any]:
@@ -54,28 +108,43 @@ def gpu_info() -> dict[str, Any]:
     }
 
 
-def generate_matrix_pair(n: int, seed: int, device: torch.device, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
+def generate_qkv(n: int, d: int, seed: int, device: torch.device, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     g = torch.Generator(device="cpu")
     g.manual_seed(seed)
-    a = torch.randn((n, n), generator=g, dtype=dtype).to(device)
-    b = torch.randn((n, n), generator=g, dtype=dtype).to(device)
-    return a, b
+    def make_tensor() -> torch.Tensor:
+        tensor = torch.empty((n, d), dtype=torch.float32)
+        tensor.uniform_(INPUT_VALUE_MIN, INPUT_VALUE_MAX, generator=g)
+        return tensor.to(device=device, dtype=dtype)
+
+    q = make_tensor()
+    k = make_tensor()
+    v = make_tensor()
+    return q, k, v
 
 
-def reduce_matrix(matrix: torch.Tensor, m: int) -> torch.Tensor:
-    n = matrix.shape[0]
-    if n % m != 0:
-        raise ValueError(f"n={n} must be divisible by m={m}")
-    block = n // m
-    return matrix.view(m, block, m, block).mean(dim=(1, 3))
+def transform_matrix(matrix: torch.Tensor, transformed_rows: int, transformed_cols: int) -> torch.Tensor:
+    rows, cols = matrix.shape
+    if rows % transformed_rows != 0 or cols % transformed_cols != 0:
+        raise ValueError(f"shape {tuple(matrix.shape)} must be divisible by {(transformed_rows, transformed_cols)}")
+    row_block = rows // transformed_rows
+    col_block = cols // transformed_cols
+    return matrix.view(transformed_rows, row_block, transformed_cols, col_block).mean(dim=(1, 3))
 
 
-def reconstruct_matrix(matrix: torch.Tensor, n: int) -> torch.Tensor:
-    m = matrix.shape[0]
-    if n % m != 0:
-        raise ValueError(f"n={n} must be divisible by m={m}")
-    block = n // m
-    return matrix.repeat_interleave(block, dim=0).repeat_interleave(block, dim=1)
+def reconstruct_matrix(matrix: torch.Tensor, rows: int, cols: int) -> torch.Tensor:
+    transformed_rows, transformed_cols = matrix.shape
+    if rows % transformed_rows != 0 or cols % transformed_cols != 0:
+        raise ValueError(f"shape {(rows, cols)} must be divisible by {tuple(matrix.shape)}")
+    row_block = rows // transformed_rows
+    col_block = cols // transformed_cols
+    return matrix.repeat_interleave(row_block, dim=0).repeat_interleave(col_block, dim=1)
+
+
+def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+    scale = q.shape[1] ** -0.5
+    scores = (q @ k.transpose(0, 1)) * scale
+    probs = torch.softmax(scores, dim=1)
+    return probs @ v
 
 
 def synchronized_ms(fn) -> tuple[Any, float]:
@@ -83,8 +152,7 @@ def synchronized_ms(fn) -> tuple[Any, float]:
     start = time.perf_counter()
     value = fn()
     torch.cuda.synchronize()
-    elapsed_ms = (time.perf_counter() - start) * 1000.0
-    return value, elapsed_ms
+    return value, (time.perf_counter() - start) * 1000.0
 
 
 def frobenius_relative_error(reference: torch.Tensor, candidate: torch.Tensor) -> float:
@@ -98,22 +166,49 @@ def bounded_accuracy(relative_error: float) -> float:
     return max(0.0, 1.0 - relative_error)
 
 
+def summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    avg_accuracy = sum(case["accuracy"] for case in cases) / max(len(cases), 1)
+    avg_error = sum(case["relative_error"] for case in cases) / max(len(cases), 1)
+    avg_exact_ms = sum(case["exact_latency_ms"] for case in cases) / max(len(cases), 1)
+    avg_transformed_ms = sum(case["transformed_latency_ms"] for case in cases) / max(len(cases), 1)
+    avg_exact_mem = sum(case["exact_memory_mb"] for case in cases) / max(len(cases), 1)
+    avg_transformed_mem = sum(case["transformed_memory_mb"] for case in cases) / max(len(cases), 1)
+    return {
+        "average_accuracy": avg_accuracy,
+        "average_relative_error": avg_error,
+        "average_exact_latency_ms": avg_exact_ms,
+        "average_transformed_latency_ms": avg_transformed_ms,
+        "average_exact_memory_mb": avg_exact_mem,
+        "average_transformed_memory_mb": avg_transformed_mem,
+    }
+
+
+def make_case_seeds(case_count: int, dtype_name: str, base_seed: int | None) -> list[int]:
+    if base_seed is not None:
+        dtype_offset = 0 if dtype_name == "float16" else 10_000
+        return [base_seed + dtype_offset + idx for idx in range(case_count)]
+    return [secrets.randbelow(2**31 - 1) + 1 for _ in range(case_count)]
+
+
 def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: torch.dtype) -> dict[str, Any]:
     n = case["n"]
-    m = case["m"]
-    a, b = generate_matrix_pair(n, seed, device, dtype)
+    d = case["d"]
+    n_transformed = case["n_transformed"]
+    d_transformed = case["d_transformed"]
+    q, k, v = generate_qkv(n, d, seed, device, dtype)
 
     torch.cuda.reset_peak_memory_stats(device)
-    exact, exact_latency_ms = synchronized_ms(lambda: a @ b)
+    exact, exact_latency_ms = synchronized_ms(lambda: attention(q, k, v))
     exact_memory_mb = torch.cuda.max_memory_allocated(device) / (1024.0 * 1024.0)
 
     torch.cuda.reset_peak_memory_stats(device)
 
     def transformed():
-        reduced_a = reduce_matrix(a, m)
-        reduced_b = reduce_matrix(b, m)
-        reduced_c = reduced_a @ reduced_b
-        return reconstruct_matrix(reduced_c, n)
+        transformed_q = transform_matrix(q, n_transformed, d_transformed)
+        transformed_k = transform_matrix(k, n_transformed, d_transformed)
+        transformed_v = transform_matrix(v, n_transformed, d_transformed)
+        transformed_out = attention(transformed_q, transformed_k, transformed_v)
+        return reconstruct_matrix(transformed_out, n, d)
 
     approx, transformed_latency_ms = synchronized_ms(transformed)
     transformed_memory_mb = torch.cuda.max_memory_allocated(device) / (1024.0 * 1024.0)
@@ -123,9 +218,11 @@ def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: t
 
     return {
         "n": n,
-        "m": m,
+        "d": d,
+        "n_transformed": n_transformed,
+        "d_transformed": d_transformed,
         "seed": seed,
-        "dtype": str(dtype),
+        "dtype": str(dtype).replace("torch.", ""),
         "exact_latency_ms": exact_latency_ms,
         "transformed_latency_ms": transformed_latency_ms,
         "accuracy": accuracy,
@@ -138,19 +235,17 @@ def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: t
 
 def run_command(cmd: list[str], cwd: Path) -> dict[str, Any]:
     try:
-        completed = subprocess.run(
-            cmd,
-            cwd=cwd,
-            text=True,
-            capture_output=True,
-            check=True,
-        )
+        completed = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=True)
         return {"command": cmd, "status": "ok", "stdout": completed.stdout.strip(), "stderr": completed.stderr.strip()}
     except Exception as exc:
         return {"command": cmd, "status": "failed", "error": str(exc)}
 
 
-def make_gpu_report(transform_version: str) -> dict[str, Any]:
+def baseline_dtype_summary(baseline: dict[str, Any], dtype_name: str) -> dict[str, Any]:
+    return baseline.get("dtype_summaries", {}).get(dtype_name, baseline.get("summary", {}))
+
+
+def make_gpu_report(transform_version: str, base_seed: int | None) -> dict[str, Any]:
     root = repo_root()
     info = gpu_info()
     if info["status"] != "ok":
@@ -166,40 +261,63 @@ def make_gpu_report(transform_version: str) -> dict[str, Any]:
         }
 
     device = torch.device("cuda:0")
-    dtype = torch.float32
     thresholds = load_thresholds(root / "eval" / "thresholds.yaml")
-    shapes = load_shapes(root / "bench" / "shapes.yaml")
-    cases = [measure_case(case, 1000 + idx, device, dtype) for idx, case in enumerate(shapes)]
-
-    avg_accuracy = sum(case["accuracy"] for case in cases) / max(len(cases), 1)
-    avg_error = sum(case["relative_error"] for case in cases) / max(len(cases), 1)
-    avg_exact_ms = sum(case["exact_latency_ms"] for case in cases) / max(len(cases), 1)
-    avg_transformed_ms = sum(case["transformed_latency_ms"] for case in cases) / max(len(cases), 1)
-    avg_exact_mem = sum(case["exact_memory_mb"] for case in cases) / max(len(cases), 1)
-    avg_transformed_mem = sum(case["transformed_memory_mb"] for case in cases) / max(len(cases), 1)
+    shapes = [resolve_case_shape(case, transform_version) for case in load_shapes(root / "bench" / "shapes.yaml")]
 
     baseline_path = root / "eval" / "baselines" / "0.0.0.json"
     baseline = json.loads(baseline_path.read_text(encoding="utf-8")) if baseline_path.exists() else {}
-    baseline_summary = baseline.get("summary", {})
+    dtype_cases: dict[str, list[dict[str, Any]]] = {}
+    dtype_summaries: dict[str, dict[str, Any]] = {}
+    all_cases: list[dict[str, Any]] = []
 
-    accuracy_pass = avg_accuracy >= thresholds["accuracy_floor"]
-    latency_limit = float(baseline_summary.get("average_transformed_latency_ms", avg_transformed_ms)) * (
-        1.0 + thresholds["max_latency_regression_pct"] / 100.0
+    for dtype_name, dtype in DTYPE_SPECS:
+        seeds = make_case_seeds(len(shapes), dtype_name, base_seed)
+        cases = [measure_case(case, seeds[idx], device, dtype) for idx, case in enumerate(shapes)]
+        summary = summarize_cases(cases)
+        baseline_summary = baseline_dtype_summary(baseline, dtype_name)
+        accuracy_pass = summary["average_accuracy"] >= thresholds["accuracy_floor"]
+        latency_limit = float(
+            baseline_summary.get("average_transformed_latency_ms", summary["average_transformed_latency_ms"])
+        ) * (1.0 + thresholds["max_latency_regression_pct"] / 100.0)
+        memory_limit = float(
+            baseline_summary.get("average_transformed_memory_mb", summary["average_transformed_memory_mb"])
+        ) * (1.0 + thresholds["max_memory_regression_pct"] / 100.0)
+        latency_pass = summary["average_transformed_latency_ms"] <= latency_limit
+        memory_pass = summary["average_transformed_memory_mb"] <= memory_limit
+        summary.update(
+            {
+                "accuracy_pass": accuracy_pass,
+                "latency_pass": latency_pass,
+                "memory_pass": memory_pass,
+            }
+        )
+        dtype_cases[dtype_name] = cases
+        dtype_summaries[dtype_name] = summary
+        all_cases.extend(cases)
+
+    overall_summary = summarize_cases(all_cases)
+    overall_summary.update(
+        {
+            "accuracy_pass": all(summary["accuracy_pass"] for summary in dtype_summaries.values()),
+            "latency_pass": all(summary["latency_pass"] for summary in dtype_summaries.values()),
+            "memory_pass": all(summary["memory_pass"] for summary in dtype_summaries.values()),
+        }
     )
-    memory_limit = float(baseline_summary.get("average_transformed_memory_mb", avg_transformed_mem)) * (
-        1.0 + thresholds["max_memory_regression_pct"] / 100.0
-    )
-    latency_pass = avg_transformed_ms <= latency_limit
-    memory_pass = avg_transformed_mem <= memory_limit
 
     build = run_command(["bash", "scripts/build.sh"], root)
     tests = run_command(["bash", "scripts/test.sh"], root)
     bench = run_command(["bash", "bench/scripts/bench.sh"], root)
 
-    build_ok = build["status"] == "ok"
-    tests_ok = tests["status"] == "ok"
-    bench_ok = bench["status"] == "ok"
-    verdict = "pass" if accuracy_pass and latency_pass and memory_pass and build_ok and tests_ok and bench_ok else "fail"
+    verdict = (
+        "pass"
+        if overall_summary["accuracy_pass"]
+        and overall_summary["latency_pass"]
+        and overall_summary["memory_pass"]
+        and build["status"] == "ok"
+        and tests["status"] == "ok"
+        and bench["status"] == "ok"
+        else "fail"
+    )
 
     return {
         "repo": "Cuda-Compute-OSS",
@@ -210,30 +328,28 @@ def make_gpu_report(transform_version: str) -> dict[str, Any]:
         "host": platform.node(),
         "platform": platform.platform(),
         "python": platform.python_version(),
-        "dtype": "float32",
+        "dtypes": [dtype_name for dtype_name, _ in DTYPE_SPECS],
+        "seed_mode": "fixed" if base_seed is not None else "unpredictable",
+        "base_seed": base_seed,
+        "input_distribution": {
+            "type": "uniform",
+            "min": INPUT_VALUE_MIN,
+            "max": INPUT_VALUE_MAX,
+        },
         "gpu_environment": info,
         "thresholds": thresholds,
-        "cases": cases,
-        "summary": {
-            "average_accuracy": avg_accuracy,
-            "average_relative_error": avg_error,
-            "average_exact_latency_ms": avg_exact_ms,
-            "average_transformed_latency_ms": avg_transformed_ms,
-            "average_exact_memory_mb": avg_exact_mem,
-            "average_transformed_memory_mb": avg_transformed_mem,
-            "accuracy_pass": accuracy_pass,
-            "latency_pass": latency_pass,
-            "memory_pass": memory_pass,
-        },
-        "commands": {
-            "build": build,
-            "tests": tests,
-            "bench": bench,
-        },
+        "cases": all_cases,
+        "dtype_cases": dtype_cases,
+        "dtype_summaries": dtype_summaries,
+        "summary": overall_summary,
+        "commands": {"build": build, "tests": tests, "bench": bench},
         "verdict": verdict,
         "notes": [
             "This is the authoritative real eval path for CCO.",
-            "Matrix computation, accuracy, latency, and memory are measured on GPU.",
+            "Attention correctness, latency, and memory are measured on GPU after Q/K/V reduction and output reconstruction.",
+            "Transform targets are flexible: any (n', d') that cleanly divides (n, d) is valid.",
+            "Each eval run measures both float16 and float32.",
+            "Q/K/V inputs are randomly generated from (n, d) with values in (-25, 25). Unless --seed is provided, eval uses unpredictable per-case seeds.",
         ],
     }
 
@@ -244,10 +360,11 @@ def main() -> None:
     parser.add_argument("--report-path", default="eval/reports/gpu-latest.json")
     parser.add_argument("--markdown-path", default="eval/reports/gpu-latest.md")
     parser.add_argument("--write-baseline", action="store_true")
+    parser.add_argument("--seed", type=int, default=None, help="Optional fixed base seed for reproducible Q/K/V generation.")
     args = parser.parse_args()
 
     root = repo_root()
-    report = make_gpu_report(args.transform_version)
+    report = make_gpu_report(args.transform_version, args.seed)
     report_path = root / args.report_path
     markdown_path = root / args.markdown_path
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,6 +377,8 @@ def main() -> None:
         f"- transform version: `{report['transform_version']}`",
         f"- git commit: `{report['git_commit']}`",
         f"- verdict: `{report['verdict']}`",
+        f"- seed mode: `{report['seed_mode']}`",
+        f"- input distribution: `uniform({report['input_distribution']['min']}, {report['input_distribution']['max']})`",
         "",
         "## GPU Environment",
         "",
@@ -272,12 +391,25 @@ def main() -> None:
         lines.extend(
             [
                 "",
-                "## Summary",
+                "## Overall Summary",
                 "",
                 f"- average accuracy: `{report['summary']['average_accuracy']:.6f}`",
                 f"- average relative error: `{report['summary']['average_relative_error']:.6f}`",
                 f"- average transformed latency (ms): `{report['summary']['average_transformed_latency_ms']:.3f}`",
                 f"- average transformed memory (MB): `{report['summary']['average_transformed_memory_mb']:.3f}`",
+            ]
+        )
+    for dtype_name, summary in report.get("dtype_summaries", {}).items():
+        lines.extend(
+            [
+                "",
+                f"## {dtype_name}",
+                "",
+                f"- average accuracy: `{summary['average_accuracy']:.6f}`",
+                f"- average relative error: `{summary['average_relative_error']:.6f}`",
+                f"- average transformed latency (ms): `{summary['average_transformed_latency_ms']:.3f}`",
+                f"- average transformed memory (MB): `{summary['average_transformed_memory_mb']:.3f}`",
+                f"- verdict gates: `accuracy={summary['accuracy_pass']}` `latency={summary['latency_pass']}` `memory={summary['memory_pass']}`",
             ]
         )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

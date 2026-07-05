@@ -1,0 +1,95 @@
+name: PR Precheck
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-precheck-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  precheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run CPU precheck
+        run: python3 eval/run_eval.py --report-path eval/reports/pr-precheck.json --markdown-path eval/reports/pr-precheck.md
+
+      - name: Upload precheck artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cco-pr-precheck-${{ github.event.pull_request.number }}
+          path: |
+            eval/reports/pr-precheck.json
+            eval/reports/pr-precheck.md
+
+      - name: Review PR and triage queue state
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const fs = require("fs");
+            const prNumber = Number(process.env.PR_NUMBER);
+            const report = JSON.parse(fs.readFileSync("eval/reports/pr-precheck.json", "utf8"));
+            const summary = fs.readFileSync("eval/reports/pr-precheck.md", "utf8");
+            const { owner, repo } = context.repo;
+
+            const verdict = report.verdict || "fail";
+            const pass = verdict === "pass";
+
+            const removeLabels = [
+              "status:gpu-queued",
+              "status:gpu-running",
+              "status:gpu-passed",
+              "status:gpu-failed",
+              "status:precheck-failed",
+            ];
+            for (const name of removeLabels) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: prNumber,
+                name,
+              }).catch(() => {});
+            }
+
+            const body = pass
+              ? `## CCO Precheck Bot\n\nCPU-only precheck passed.\n\nThis PR has been added to the GPU eval queue in arrival order.\n\n${summary}`
+              : `## CCO Precheck Bot\n\nCPU-only precheck failed, so this PR was auto-closed before entering the GPU queue.\n\n${summary}`;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body,
+            });
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: prNumber,
+              labels: [pass ? "status:gpu-queued" : "status:precheck-failed"],
+            });
+
+            if (!pass) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: prNumber,
+                state: "closed",
+              });
+            }

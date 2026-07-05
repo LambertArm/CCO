@@ -1,0 +1,153 @@
+name: GPU Queue
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  drain-queue:
+    runs-on: [self-hosted, gpu]
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build ordered PR queue
+        id: queue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const queued = pulls
+              .filter(pr => (pr.labels || []).some(label => label.name === "status:gpu-queued"))
+              .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+              .map(pr => ({
+                number: pr.number,
+                created_at: pr.created_at,
+                head_ref: pr.head.ref,
+                head_sha: pr.head.sha,
+              }));
+            core.setOutput("queue", JSON.stringify(queued));
+
+      - name: Process queued PRs one by one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          QUEUE_JSON: ${{ steps.queue.outputs.queue }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import urllib.error
+          import urllib.request
+
+          queue = json.loads(os.environ.get("QUEUE_JSON", "[]"))
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          owner, name = repo.split("/", 1)
+
+          def gh_request(method: str, path: str, payload: dict | None = None) -> None:
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              req = urllib.request.Request(
+                  f"https://api.github.com{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  urllib.request.urlopen(req).read()
+              except urllib.error.HTTPError as exc:
+                  if exc.code != 404:
+                      raise
+
+          def add_labels(pr_number: int, labels: list[str]) -> None:
+              gh_request("POST", f"/repos/{owner}/{name}/issues/{pr_number}/labels", {"labels": labels})
+
+          def remove_label(pr_number: int, label: str) -> None:
+              gh_request("DELETE", f"/repos/{owner}/{name}/issues/{pr_number}/labels/{label}")
+
+          def comment(pr_number: int, body: str) -> None:
+              gh_request("POST", f"/repos/{owner}/{name}/issues/{pr_number}/comments", {"body": body})
+
+          if not queue:
+              print("CCO GPU queue: no PRs are waiting")
+              raise SystemExit(0)
+
+          for item in queue:
+              pr_number = int(item["number"])
+              print(f"Processing PR #{pr_number}")
+              remove_label(pr_number, "status:gpu-queued")
+              remove_label(pr_number, "status:gpu-passed")
+              remove_label(pr_number, "status:gpu-failed")
+              add_labels(pr_number, ["status:gpu-running"])
+              comment(
+                  pr_number,
+                  "## CCO GPU Queue Bot\n\nYour PR reached the front of the GPU eval queue and real GPU evaluation is starting now.",
+              )
+
+              subprocess.run(["git", "checkout", "--detach", "HEAD"], check=True)
+              subprocess.run(["git", "fetch", "origin", f"pull/{pr_number}/head:pr-{pr_number}"], check=True)
+              subprocess.run(["git", "checkout", f"pr-{pr_number}"], check=True)
+
+              eval_result = subprocess.run(
+                  [
+                      "python3",
+                      "eval/run_eval_gpu.py",
+                      "--report-path",
+                      f"eval/reports/pr-{pr_number}.json",
+                      "--markdown-path",
+                      f"eval/reports/pr-{pr_number}.md",
+                  ],
+                  text=True,
+                  capture_output=True,
+              )
+
+              report_path = f"eval/reports/pr-{pr_number}.json"
+              markdown_path = f"eval/reports/pr-{pr_number}.md"
+              verdict = "fail"
+              markdown_body = "GPU eval did not produce a markdown report."
+              if os.path.exists(report_path):
+                  with open(report_path, "r", encoding="utf-8") as fh:
+                      report = json.load(fh)
+                  verdict = str(report.get("verdict", "fail"))
+              if os.path.exists(markdown_path):
+                  with open(markdown_path, "r", encoding="utf-8") as fh:
+                      markdown_body = fh.read()
+
+              remove_label(pr_number, "status:gpu-running")
+              add_labels(pr_number, [f"status:gpu-{'passed' if verdict == 'pass' else 'failed'}"])
+
+              comment(
+                  pr_number,
+                  "## CCO GPU Queue Bot\n\n"
+                  f"GPU eval finished for PR #{pr_number} with verdict `{verdict}`.\n\n"
+                  f"{markdown_body}\n\n"
+                  "### Raw command status\n"
+                  f"```text\n{eval_result.stdout}{eval_result.stderr}\n```",
+              )
+
+              subprocess.run(["git", "checkout", os.environ.get("GITHUB_SHA", "HEAD")], check=False)
+          PY

@@ -1,7 +1,10 @@
 default:
+  - {}
   - n: 1024
-    m: 256
+    d: 64
+    n_transformed: 256
+    d_transformed: 16
   - n: 2048
-    m: 512
-  - n: 4096
-    m: 1024
+    d: 128
+    n_transformed: 512
+    d_transformed: 32

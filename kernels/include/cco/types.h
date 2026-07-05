@@ -6,6 +6,11 @@
 
 namespace cco {
 
+inline constexpr std::size_t kDefaultAttentionSeqLen = 4096;
+inline constexpr std::size_t kDefaultAttentionHeadDim = 256;
+inline constexpr std::size_t kDefaultTransformedAttentionSeqDivisor = 4;
+inline constexpr std::size_t kDefaultTransformedAttentionDimDivisor = 4;
+
 struct MatrixShape {
     std::size_t rows{};
     std::size_t cols{};
@@ -16,10 +21,21 @@ struct DenseMatrix {
     std::vector<float> values;
 };
 
+struct AttentionShape {
+    std::size_t seq_len{kDefaultAttentionSeqLen};
+    std::size_t head_dim{kDefaultAttentionHeadDim};
+};
+
 struct TransformConfig {
     std::string name;
-    std::size_t n{};
-    std::size_t m{};
+    MatrixShape original_shape{};
+    MatrixShape transformed_shape{};
+};
+
+struct AttentionTransformConfig {
+    std::string name;
+    AttentionShape original_shape{};
+    AttentionShape transformed_shape{0, 0};
 };
 
 struct RunMetrics {
@@ -27,11 +43,6 @@ struct RunMetrics {
     double transformed_latency_ms{};
     double reconstruction_error{};
     double memory_mb{};
-};
-
-struct AttentionShape {
-    std::size_t seq_len{};
-    std::size_t head_dim{};
 };
 
 } // namespace cco
