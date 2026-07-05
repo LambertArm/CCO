@@ -18,8 +18,22 @@ Each evaluated run should record:
 Useful commands:
 
 ```bash
+python3 eval/run_eval_gpu.py
+python3 eval/compare_versions.py --report eval/reports/gpu-latest.json
+python3 eval/run_eval_gpu.py --write-baseline
 python3 eval/run_eval.py
-python3 eval/compare_versions.py
 ```
 
-At the current stage, `bench/` and `eval/` are repo scaffolds. They should evolve together with the first real GEMM and transform implementations.
+For CCO, the real evaluation path is GPU-based. Exact GEMM, transformed GEMM, accuracy, latency, and memory are all measured on GPU in `run_eval_gpu.py`.
+
+Use `python3 eval/run_eval_gpu.py` on a rented or self-hosted GPU machine. That path is intended for repo-level validation and combines:
+
+- GPU exact GEMM
+- GPU transformed GEMM
+- GPU accuracy and error
+- GPU latency and memory
+- GPU build status
+- GPU test status
+- GPU benchmark command status
+
+`run_eval.py` is only a CPU precheck and does not compute matrix results.

@@ -22,6 +22,9 @@ target_link_libraries(cco_bench_transform PRIVATE cco_runtime)
 add_executable(cco_bench_compute bench/bench_compute.cpp)
 target_link_libraries(cco_bench_compute PRIVATE cco_runtime)
 
+add_executable(cco_bench_attention bench/bench_attention.cpp)
+target_link_libraries(cco_bench_attention PRIVATE cco_runtime)
+
 add_executable(cco_bench_pipeline bench/bench_pipeline.cpp)
 target_link_libraries(cco_bench_pipeline PRIVATE cco_runtime)
 
@@ -45,6 +48,10 @@ if(CCO_BUILD_TESTS)
     add_executable(cco_test_compute tests/test_compute.cpp)
     target_link_libraries(cco_test_compute PRIVATE cco_runtime)
     add_test(NAME cco_test_compute COMMAND cco_test_compute)
+
+    add_executable(cco_test_attention tests/test_attention.cpp)
+    target_link_libraries(cco_test_attention PRIVATE cco_runtime)
+    add_test(NAME cco_test_attention COMMAND cco_test_attention)
 
     add_executable(cco_test_pipeline tests/test_pipeline.cpp)
     target_link_libraries(cco_test_pipeline PRIVATE cco_runtime)

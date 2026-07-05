@@ -6,6 +6,10 @@ add_library(cco_kernels
     src/transform/00_baseline.cu
     src/transform/registry.cpp
     src/compute/gemm.cu
+    src/attention/attention.cu
+    src/attention/softmax.cu
+    src/attention/qk_matmul.cu
+    src/attention/pv_matmul.cu
 )
 
 target_include_directories(cco_kernels PUBLIC

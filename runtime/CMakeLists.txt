@@ -1,6 +1,7 @@
 add_library(cco_runtime
     src/reference/transform_cpu.cpp
     src/reference/compute_cpu.cpp
+    src/reference/attention_cpu.cpp
     src/reference/reconstruct_cpu.cpp
     src/pipeline/pipeline.cpp
     src/dispatch.cpp

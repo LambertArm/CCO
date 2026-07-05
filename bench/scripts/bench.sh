@@ -6,4 +6,5 @@ ROOT="$(repo_root)"
 
 "$ROOT/build/cco_bench_transform"
 "$ROOT/build/cco_bench_compute"
+"$ROOT/build/cco_bench_attention"
 "$ROOT/build/cco_bench_pipeline"

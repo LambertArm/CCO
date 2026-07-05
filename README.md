@@ -7,7 +7,9 @@ The repo is organized around two primary subsystems:
 - `kernels/` holds the CUDA matrix transform implementation and GEMM kernels.
 - `runtime/` holds host orchestration, pipeline logic, and CPU references.
 - `bench/` measures raw performance.
-- `eval/` compares versions with stable rules.
+- `eval/` runs the real GPU-based evaluation system.
+- `eval/` also includes a lightweight CPU precheck for local non-GPU machines.
+- GitHub workflows run eval automatically and can comment results on pull requests.
 
 The current structure is intentionally inspired by two ideas:
 
@@ -40,6 +42,16 @@ The repo currently keeps only the first matrix transform version in `kernels/src
 
 Future versions can be added later, but the repo now stays intentionally focused on a single matrix transform baseline and GEMM-only compute path so the structure is clean from the start.
 
+## Development Order
+
+CCO follows this order:
+
+1. improve GEMM with mathematical matrix transform methods
+2. evaluate the transform directly against exact GEMM
+3. only after the GEMM path is useful, reuse it inside attention
+
+An attention area exists under `kernels/src/attention/`, but it is secondary and intentionally scaffolded for later integration.
+
 ## Build
 
 ```bash
@@ -61,4 +73,8 @@ ctest --test-dir build
 
 ## Current Scope
 
-CCO currently tracks one baseline matrix transform version, one GEMM-focused compute path, and a kernel/runtime split designed for future optimization work.
+CCO currently tracks one baseline matrix transform version, one GEMM-focused compute path, and a kernel/runtime split designed for future optimization work. Attention is present only as a future consumer of the GEMM work.
+
+The authoritative evaluation path is GPU-based: exact GEMM vs transformed GEMM, bounded accuracy, relative error, latency, and memory are all measured on GPU in `eval/run_eval_gpu.py`.
+
+For local non-GPU development, `eval/run_eval.py` is only a lightweight precheck.

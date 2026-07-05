@@ -17,8 +17,11 @@ Right now that means comparing against version `0.0.0`.
 ## Scope Guidance
 
 - put reusable CUDA compute in `kernels/src/compute/`
+- put attention-specific kernels in `kernels/src/attention/`
 - put transform evolution in `kernels/src/transform/`
 - put correctness-oriented CPU truth code in `runtime/src/reference/`
 - put orchestration and pipeline logic in `runtime/src/`
 
 CCO currently targets matrix-only transforms and GEMM only.
+
+Attention work should stay secondary until the GEMM path is strong enough to reuse there.

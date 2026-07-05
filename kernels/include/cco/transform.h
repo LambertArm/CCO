@@ -11,10 +11,15 @@ struct TransformResult {
     std::string version;
     MatrixShape original_shape;
     MatrixShape reduced_shape;
+    std::size_t block_ratio{};
     std::vector<float> reduced_data;
 };
 
 TransformResult run_transform(const TransformConfig& config);
+TransformResult run_transform(const std::vector<float>& matrix,
+                              MatrixShape shape,
+                              const TransformConfig& config);
+std::vector<float> reconstruct_matrix(const TransformResult& result);
 std::vector<std::string> available_transforms();
 
 } // namespace cco

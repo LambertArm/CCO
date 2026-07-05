@@ -14,6 +14,7 @@ bench/
 ├── README.md
 ├── bench_transform.cpp
 ├── bench_compute.cpp
+├── bench_attention.cpp
 ├── bench_pipeline.cpp
 ├── shapes.yaml
 └── scripts/
@@ -27,3 +28,5 @@ bench/scripts/accuracy.sh
 ```
 
 The current benchmark binaries are still scaffolds, but this layout is ready for the first real GEMM and matrix-transform measurements.
+
+`bench_attention.cpp` exists only as a future extension point. The main benchmark focus right now is GEMM plus matrix transform behavior.

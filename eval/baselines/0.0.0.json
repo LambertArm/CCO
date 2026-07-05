@@ -1,22 +1,97 @@
 {
   "repo": "Cuda-Compute-OSS",
   "transform_version": "0.0.0",
-  "verdict": "baseline-scaffold",
-  "shapes": [
+  "timestamp_utc": "2026-07-05T04:49:07.799933+00:00",
+  "git_commit": "96c752ba059439423361d4fa1df87fd84e95f06c",
+  "host": "vmi3278236",
+  "platform": "Linux-5.15.0-185-generic-x86_64-with-glibc2.35",
+  "python": "3.10.12",
+  "gpu": "cpu-eval",
+  "cuda": "not-used",
+  "dtype": "float32",
+  "thresholds": {
+    "accuracy_floor": 0.95,
+    "max_latency_regression_pct": 2.0,
+    "max_memory_regression_pct": 2.0
+  },
+  "baseline_path": "/home/ubuntu/Videos/Lambert/cco/Cuda-Compute-OSS/eval/baselines/0.0.0.json",
+  "cases": [
     {
       "n": 1024,
-      "m": 256
+      "m": 256,
+      "seed": 1000,
+      "dtype": "<class 'numpy.float32'>",
+      "exact_latency_ms": 1391.5310389711522,
+      "transformed_latency_ms": 401.7204080009833,
+      "relative_error": 0.9965432286262512,
+      "accuracy": 0.0034567713737487793,
+      "exact_memory_mb": 12.0,
+      "transformed_memory_mb": 12.75,
+      "details": {
+        "reduced_shape": [
+          256,
+          256
+        ],
+        "block_ratio": 4
+      }
     },
     {
       "n": 2048,
-      "m": 512
+      "m": 512,
+      "seed": 1001,
+      "dtype": "<class 'numpy.float32'>",
+      "exact_latency_ms": 2677.2913400200196,
+      "transformed_latency_ms": 1417.3832240048796,
+      "relative_error": 0.9965575933456421,
+      "accuracy": 0.00344240665435791,
+      "exact_memory_mb": 48.0,
+      "transformed_memory_mb": 51.0,
+      "details": {
+        "reduced_shape": [
+          512,
+          512
+        ],
+        "block_ratio": 4
+      }
     },
     {
       "n": 4096,
-      "m": 1024
+      "m": 1024,
+      "seed": 1002,
+      "dtype": "<class 'numpy.float32'>",
+      "exact_latency_ms": 6596.763890993316,
+      "transformed_latency_ms": 2095.4136299551465,
+      "relative_error": 0.9965817928314209,
+      "accuracy": 0.0034182071685791016,
+      "exact_memory_mb": 192.0,
+      "transformed_memory_mb": 204.0,
+      "details": {
+        "reduced_shape": [
+          1024,
+          1024
+        ],
+        "block_ratio": 4
+      }
     }
   ],
+  "summary": {
+    "average_relative_error": 0.9965608716011047,
+    "average_accuracy": 0.0034391283988952637,
+    "average_exact_latency_ms": 3555.1954233281626,
+    "average_transformed_latency_ms": 1304.8390873203364,
+    "average_exact_memory_mb": 84.0,
+    "average_transformed_memory_mb": 89.25,
+    "baseline_average_relative_error": 0.99,
+    "baseline_average_accuracy": 0.0,
+    "baseline_average_transformed_latency_ms": 1000000.0,
+    "baseline_average_transformed_memory_mb": 1000000.0,
+    "accuracy_pass": false,
+    "latency_pass": true,
+    "memory_pass": true
+  },
+  "verdict": "fail",
   "notes": [
-    "Initial scaffold baseline for CCO eval."
+    "Current eval uses a deterministic CPU baseline so CI can validate the 0.0.0 matrix transform today.",
+    "Replace this with CUDA-backed measurements when the first real kernels are wired into the benchmark path."
   ]
 }

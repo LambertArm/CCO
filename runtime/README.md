@@ -14,4 +14,5 @@ Current focus:
 
 - host-side wiring for the `0.0.0` matrix transform
 - GEMM-oriented pipeline flow
+- CPU reference stubs for attention-related kernels after GEMM integration
 - CPU truth paths used for validation
