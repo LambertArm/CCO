@@ -22,6 +22,7 @@ Useful commands:
 bash scripts/eval.sh
 python3 eval/run_eval_gpu.py
 python3 eval/run_eval_gpu.py --seed 1234
+python3 eval/run_eval_gpu.py --trials-per-case 10
 python3 eval/compare_versions.py --report eval/reports/gpu-latest.json
 python3 eval/run_eval_gpu.py --write-baseline
 python3 eval/run_eval.py
@@ -32,6 +33,8 @@ For CCO, the real evaluation path is GPU-based. Exact attention, transformed att
 Each GPU eval run should cover both `float16` and `float32`.
 
 `Q/K/V` inputs are generated randomly from `(n, d)` with a uniform value range of `(-25, 25)`. The default mode is unpredictable; use `--seed` when you need reproducible input generation.
+
+Each shape/dtype pair is evaluated across 10 Q/K/V trials by default. The eval report stores per-trial scores and sums those trial scores into the final score output.
 
 Use `python3 eval/run_eval_gpu.py` on a rented or self-hosted GPU machine. That path is intended for repo-level validation and combines:
 

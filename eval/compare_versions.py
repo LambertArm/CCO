@@ -31,6 +31,8 @@ def main() -> None:
     print(f"baseline verdict:   {baseline.get('verdict', 'unknown')}")
     print(f"report verdict:     {report.get('verdict', 'unknown')}")
     print(f"case count:         {len(report.get('cases', []))}")
+    print(f"baseline trials:    {baseline.get('trials_per_case', 'unknown')}")
+    print(f"report trials:      {report.get('trials_per_case', 'unknown')}")
     print(f"baseline score:     {baseline_score:.8f}")
     print(f"report score:       {report_score:.8f}")
 

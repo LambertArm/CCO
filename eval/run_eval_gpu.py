@@ -22,6 +22,7 @@ DEFAULT_TRANSFORMED_SEQ_DIVISOR = 4
 DEFAULT_TRANSFORMED_DIM_DIVISOR = 4
 INPUT_VALUE_MIN = -25.0
 INPUT_VALUE_MAX = 25.0
+DEFAULT_TRIALS_PER_CASE = 10
 DTYPE_SPECS: list[tuple[str, torch.dtype]] = [
     ("float16", torch.float16),
     ("float32", torch.float32),
@@ -166,6 +167,12 @@ def bounded_accuracy(relative_error: float) -> float:
     return max(0.0, 1.0 - relative_error)
 
 
+def case_score(relative_error: float, transformed_latency_ms: float, transformed_memory_mb: float) -> float:
+    if transformed_latency_ms <= 0.0 or transformed_memory_mb <= 0.0:
+        return 0.0
+    return (1.0 / (1.0 + relative_error)) * (1.0 / transformed_latency_ms) * (1.0 / transformed_memory_mb)
+
+
 def summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
     avg_accuracy = sum(case["accuracy"] for case in cases) / max(len(cases), 1)
     avg_error = sum(case["relative_error"] for case in cases) / max(len(cases), 1)
@@ -173,13 +180,17 @@ def summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
     avg_transformed_ms = sum(case["transformed_latency_ms"] for case in cases) / max(len(cases), 1)
     avg_exact_mem = sum(case["exact_memory_mb"] for case in cases) / max(len(cases), 1)
     avg_transformed_mem = sum(case["transformed_memory_mb"] for case in cases) / max(len(cases), 1)
+    total_score = sum(float(case.get("score", 0.0)) for case in cases)
     return {
+        "trial_count": len(cases),
         "average_accuracy": avg_accuracy,
         "average_relative_error": avg_error,
         "average_exact_latency_ms": avg_exact_ms,
         "average_transformed_latency_ms": avg_transformed_ms,
         "average_exact_memory_mb": avg_exact_mem,
         "average_transformed_memory_mb": avg_transformed_mem,
+        "total_score": total_score,
+        "average_score": total_score / max(len(cases), 1),
     }
 
 
@@ -190,7 +201,7 @@ def make_case_seeds(case_count: int, dtype_name: str, base_seed: int | None) -> 
     return [secrets.randbelow(2**31 - 1) + 1 for _ in range(case_count)]
 
 
-def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: torch.dtype) -> dict[str, Any]:
+def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: torch.dtype, trial_index: int) -> dict[str, Any]:
     n = case["n"]
     d = case["d"]
     n_transformed = case["n_transformed"]
@@ -215,12 +226,14 @@ def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: t
 
     relative_error = frobenius_relative_error(exact, approx)
     accuracy = bounded_accuracy(relative_error)
+    score = case_score(relative_error, transformed_latency_ms, transformed_memory_mb)
 
     return {
         "n": n,
         "d": d,
         "n_transformed": n_transformed,
         "d_transformed": d_transformed,
+        "trial_index": trial_index,
         "seed": seed,
         "dtype": str(dtype).replace("torch.", ""),
         "exact_latency_ms": exact_latency_ms,
@@ -229,6 +242,7 @@ def measure_case(case: dict[str, int], seed: int, device: torch.device, dtype: t
         "relative_error": relative_error,
         "exact_memory_mb": exact_memory_mb,
         "transformed_memory_mb": transformed_memory_mb,
+        "score": score,
         "device": str(device),
     }
 
@@ -245,7 +259,7 @@ def baseline_dtype_summary(baseline: dict[str, Any], dtype_name: str) -> dict[st
     return baseline.get("dtype_summaries", {}).get(dtype_name, baseline.get("summary", {}))
 
 
-def make_gpu_report(transform_version: str, base_seed: int | None) -> dict[str, Any]:
+def make_gpu_report(transform_version: str, base_seed: int | None, trials_per_case: int) -> dict[str, Any]:
     root = repo_root()
     info = gpu_info()
     if info["status"] != "ok":
@@ -271,8 +285,13 @@ def make_gpu_report(transform_version: str, base_seed: int | None) -> dict[str, 
     all_cases: list[dict[str, Any]] = []
 
     for dtype_name, dtype in DTYPE_SPECS:
-        seeds = make_case_seeds(len(shapes), dtype_name, base_seed)
-        cases = [measure_case(case, seeds[idx], device, dtype) for idx, case in enumerate(shapes)]
+        seeds = make_case_seeds(len(shapes) * trials_per_case, dtype_name, base_seed)
+        cases: list[dict[str, Any]] = []
+        seed_index = 0
+        for case in shapes:
+            for trial_index in range(trials_per_case):
+                cases.append(measure_case(case, seeds[seed_index], device, dtype, trial_index))
+                seed_index += 1
         summary = summarize_cases(cases)
         baseline_summary = baseline_dtype_summary(baseline, dtype_name)
         accuracy_pass = summary["average_accuracy"] >= thresholds["accuracy_floor"]
@@ -329,6 +348,7 @@ def make_gpu_report(transform_version: str, base_seed: int | None) -> dict[str, 
         "platform": platform.platform(),
         "python": platform.python_version(),
         "dtypes": [dtype_name for dtype_name, _ in DTYPE_SPECS],
+        "trials_per_case": trials_per_case,
         "seed_mode": "fixed" if base_seed is not None else "unpredictable",
         "base_seed": base_seed,
         "input_distribution": {
@@ -350,6 +370,7 @@ def make_gpu_report(transform_version: str, base_seed: int | None) -> dict[str, 
             "Transform targets are flexible: any (n', d') that cleanly divides (n, d) is valid.",
             "Each eval run measures both float16 and float32.",
             "Q/K/V inputs are randomly generated from (n, d) with values in (-25, 25). Unless --seed is provided, eval uses unpredictable per-case seeds.",
+            f"Each shape/dtype pair is evaluated across {trials_per_case} Q/K/V trials, and trial scores are summed.",
         ],
     }
 
@@ -361,10 +382,11 @@ def main() -> None:
     parser.add_argument("--markdown-path", default="eval/reports/gpu-latest.md")
     parser.add_argument("--write-baseline", action="store_true")
     parser.add_argument("--seed", type=int, default=None, help="Optional fixed base seed for reproducible Q/K/V generation.")
+    parser.add_argument("--trials-per-case", type=int, default=DEFAULT_TRIALS_PER_CASE)
     args = parser.parse_args()
 
     root = repo_root()
-    report = make_gpu_report(args.transform_version, args.seed)
+    report = make_gpu_report(args.transform_version, args.seed, args.trials_per_case)
     report_path = root / args.report_path
     markdown_path = root / args.markdown_path
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -379,6 +401,7 @@ def main() -> None:
         f"- verdict: `{report['verdict']}`",
         f"- seed mode: `{report['seed_mode']}`",
         f"- input distribution: `uniform({report['input_distribution']['min']}, {report['input_distribution']['max']})`",
+        f"- trials per case: `{report['trials_per_case']}`",
         "",
         "## GPU Environment",
         "",
@@ -397,6 +420,7 @@ def main() -> None:
                 f"- average relative error: `{report['summary']['average_relative_error']:.6f}`",
                 f"- average transformed latency (ms): `{report['summary']['average_transformed_latency_ms']:.3f}`",
                 f"- average transformed memory (MB): `{report['summary']['average_transformed_memory_mb']:.3f}`",
+                f"- total score: `{report['summary']['total_score']:.8f}`",
             ]
         )
     for dtype_name, summary in report.get("dtype_summaries", {}).items():
@@ -409,6 +433,7 @@ def main() -> None:
                 f"- average relative error: `{summary['average_relative_error']:.6f}`",
                 f"- average transformed latency (ms): `{summary['average_transformed_latency_ms']:.3f}`",
                 f"- average transformed memory (MB): `{summary['average_transformed_memory_mb']:.3f}`",
+                f"- total score: `{summary['total_score']:.8f}`",
                 f"- verdict gates: `accuracy={summary['accuracy_pass']}` `latency={summary['latency_pass']}` `memory={summary['memory_pass']}`",
             ]
         )

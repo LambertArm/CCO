@@ -8,6 +8,14 @@
     "float16",
     "float32"
   ],
+  "trials_per_case": 10,
+  "seed_mode": "fixed",
+  "base_seed": 1234,
+  "input_distribution": {
+    "type": "uniform",
+    "min": -25.0,
+    "max": 25.0
+  },
   "gpu_environment": {
     "status": "placeholder"
   },
@@ -22,6 +30,7 @@
       "d": 256,
       "n_transformed": 1024,
       "d_transformed": 64,
+      "trial_index": 0,
       "seed": 1000,
       "dtype": "float16",
       "exact_latency_ms": 1.0,
@@ -30,6 +39,7 @@
       "relative_error": 0.05,
       "exact_memory_mb": 1.0,
       "transformed_memory_mb": 1.0,
+      "score": 0.9523809523809523,
       "device": "placeholder"
     },
     {
@@ -37,6 +47,7 @@
       "d": 256,
       "n_transformed": 1024,
       "d_transformed": 64,
+      "trial_index": 0,
       "seed": 1000,
       "dtype": "float32",
       "exact_latency_ms": 1.0,
@@ -45,40 +56,50 @@
       "relative_error": 0.05,
       "exact_memory_mb": 1.0,
       "transformed_memory_mb": 1.0,
+      "score": 0.9523809523809523,
       "device": "placeholder"
     }
   ],
   "dtype_summaries": {
     "float16": {
+      "trial_count": 1,
       "average_accuracy": 0.95,
       "average_relative_error": 0.05,
       "average_exact_latency_ms": 1.0,
       "average_transformed_latency_ms": 1.0,
       "average_exact_memory_mb": 1.0,
       "average_transformed_memory_mb": 1.0,
+      "total_score": 0.9523809523809523,
+      "average_score": 0.9523809523809523,
       "accuracy_pass": true,
       "latency_pass": true,
       "memory_pass": true
     },
     "float32": {
+      "trial_count": 1,
       "average_accuracy": 0.95,
       "average_relative_error": 0.05,
       "average_exact_latency_ms": 1.0,
       "average_transformed_latency_ms": 1.0,
       "average_exact_memory_mb": 1.0,
       "average_transformed_memory_mb": 1.0,
+      "total_score": 0.9523809523809523,
+      "average_score": 0.9523809523809523,
       "accuracy_pass": true,
       "latency_pass": true,
       "memory_pass": true
     }
   },
   "summary": {
+    "trial_count": 2,
     "average_accuracy": 0.95,
     "average_relative_error": 0.05,
     "average_exact_latency_ms": 1.0,
     "average_transformed_latency_ms": 1.0,
     "average_exact_memory_mb": 1.0,
     "average_transformed_memory_mb": 1.0,
+    "total_score": 1.9047619047619047,
+    "average_score": 0.9523809523809523,
     "accuracy_pass": true,
     "latency_pass": true,
     "memory_pass": true
@@ -87,6 +108,7 @@
   "notes": [
     "This checked-in baseline is a schema placeholder for the flexible transformed-attention workflow.",
     "Regenerate it on a real GPU machine with python3 eval/run_eval_gpu.py --write-baseline before using it for serious regression gating.",
-    "The real baseline should include both float16 and float32 measurements."
+    "The real baseline should include both float16 and float32 measurements.",
+    "The real baseline should also reflect the intended trials-per-case setting."
   ]
 }

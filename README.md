@@ -67,6 +67,7 @@ ctest --test-dir build
 - [`docs/transform-ladder.md`](docs/transform-ladder.md)
 - [`docs/evaluation.md`](docs/evaluation.md)
 - [`docs/contributing.md`](docs/contributing.md)
+- [`docs/gpu-runner-setup.md`](docs/gpu-runner-setup.md)
 - [`bench/README.md`](bench/README.md)
 - [`eval/README.md`](eval/README.md)
 - [`kernels/README.md`](kernels/README.md)
@@ -78,6 +79,8 @@ CCO currently tracks one baseline transform version, one transformed-attention p
 
 The authoritative evaluation path is GPU-based: exact attention vs transformed attention, bounded accuracy, relative error, latency, and memory are all measured on GPU in `eval/run_eval_gpu.py`.
 
+By default, the GPU eval runs 10 random Q/K/V trials per shape and dtype, scores them one by one, and sums those trial scores into the final result.
+
 For local non-GPU development, `eval/run_eval.py` is only a lightweight precheck.
 
 For a single automatic entrypoint, run `bash scripts/eval.sh`. It chooses CPU precheck on CPU-only machines and real GPU eval on CUDA machines.
@@ -86,6 +89,12 @@ For pull requests, the repo now uses a two-stage bot flow:
 
 1. CPU-only precheck on every PR update
 2. ordered GPU queue processing later on a rented or self-hosted GPU machine
+
+To prepare a rented GPU machine for the queue worker, use:
+
+```bash
+bash scripts/setup_gpu_runner.sh
+```
 
 Default attention shapes are `n=4096`, `d=256`, `n'=1024`, and `d'=64`, but any valid transform target can be configured.
 

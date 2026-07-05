@@ -21,6 +21,8 @@ Right now that means comparing against version `0.0.0`.
 3. passing precheck PRs get added to the ordered GPU eval queue
 4. when a GPU machine is available, run the queue worker to evaluate queued PRs one by one in arrival order
 
+Use [`docs/gpu-runner-setup.md`](gpu-runner-setup.md) to prepare the rented GPU machine that will run the queue worker.
+
 ## Scope Guidance
 
 - put attention-specific kernels in `kernels/src/attention/`

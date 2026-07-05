@@ -27,8 +27,10 @@ eval/
 
 ```bash
 bash scripts/eval.sh
+bash scripts/setup_gpu_runner.sh
 python3 eval/run_eval_gpu.py
 python3 eval/run_eval_gpu.py --seed 1234
+python3 eval/run_eval_gpu.py --trials-per-case 10
 python3 eval/compare_versions.py --report eval/reports/gpu-latest.json
 python3 eval/run_eval_gpu.py --write-baseline
 python3 eval/run_eval.py
@@ -62,6 +64,7 @@ The current implementation measures on GPU:
 - bounded accuracy and relative error
 - latency
 - memory
+- repeated random Q/K/V trials per shape and dtype
 
 The transform target is flexible: the eval harness accepts any `(n', d')` that cleanly divide `(n, d)`.
 
@@ -69,6 +72,10 @@ If a shape case omits `n_transformed` and `d_transformed`, `run_eval_gpu.py` res
 
 `Q/K/V` are randomly generated from `(n, d)` with values sampled uniformly from `(-25, 25)`. By default the seeds are unpredictable. Pass `--seed` when you want a reproducible eval run.
 
+By default, each shape/dtype pair runs `10` independent Q/K/V trials. The report records a per-trial score and sums those trial scores into the final result.
+
 `run_eval_gpu.py` is the rented-GPU path and the real evaluation system for CCO.
 
 `run_eval.py` remains useful as a lightweight local precheck for repo configuration, but it is not a performance or accuracy evaluation path.
+
+For rented GPU machine setup, see [`docs/gpu-runner-setup.md`](../docs/gpu-runner-setup.md).
