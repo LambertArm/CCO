@@ -4,6 +4,7 @@
 
 int main() {
     const auto transforms = cco::available_transforms();
-    assert(!transforms.empty());
+    assert(transforms.size() == 1);
+    assert(transforms.front() == "0.0.0");
     return 0;
 }

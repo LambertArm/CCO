@@ -1,8 +1,8 @@
 ---
-name: Strategy proposal
+name: Transform proposal
 about: Propose a new CCO transform version or transform-path enhancement
 title: "[transform] "
-labels: "type:strategy, status:triage"
+labels: "type:transform, status:triage"
 ---
 
 ## Idea

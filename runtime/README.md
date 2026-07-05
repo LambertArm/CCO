@@ -9,3 +9,9 @@ This directory holds host-side orchestration for CCO.
 - `src/dispatch.cpp`: runtime-facing wiring and shared metrics helpers
 
 `runtime/` should coordinate kernels, not replace them.
+
+Current focus:
+
+- host-side wiring for the `0.0.0` matrix transform
+- GEMM-oriented pipeline flow
+- CPU truth paths used for validation

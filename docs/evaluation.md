@@ -14,3 +14,12 @@ Each evaluated run should record:
 - reconstruction error
 - memory estimate
 - notes about the execution environment
+
+Useful commands:
+
+```bash
+python3 eval/run_eval.py
+python3 eval/compare_versions.py
+```
+
+At the current stage, `bench/` and `eval/` are repo scaffolds. They should evolve together with the first real GEMM and transform implementations.

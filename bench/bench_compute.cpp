@@ -1,6 +1,6 @@
 #include <iostream>
 
 int main() {
-    std::cout << "CCO compute bench scaffold\n";
+    std::cout << "CCO GEMM bench\n";
     return 0;
 }

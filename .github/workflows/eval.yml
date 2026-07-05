@@ -1,0 +1,35 @@
+name: Eval
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run eval scaffold
+        run: python3 eval/run_eval.py --report-path eval/reports/ci.json --markdown-path eval/reports/ci.md
+
+      - name: Compare against baseline scaffold
+        run: python3 eval/compare_versions.py --baseline eval/baselines/0.0.0.json --report eval/reports/ci.json
+
+      - name: Upload eval artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cco-eval-report
+          path: |
+            eval/reports/ci.json
+            eval/reports/ci.md

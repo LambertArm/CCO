@@ -29,8 +29,7 @@ Cuda-Compute-OSS/
 ├── bench/
 ├── eval/
 ├── examples/
-├── scripts/
-└── archive/legacy-python/
+└── scripts/
 ```
 
 ## First Version
@@ -55,9 +54,11 @@ ctest --test-dir build
 - [`docs/transform-ladder.md`](docs/transform-ladder.md)
 - [`docs/evaluation.md`](docs/evaluation.md)
 - [`docs/contributing.md`](docs/contributing.md)
+- [`bench/README.md`](bench/README.md)
+- [`eval/README.md`](eval/README.md)
 - [`kernels/README.md`](kernels/README.md)
 - [`runtime/README.md`](runtime/README.md)
 
-## Legacy Prototype
+## Current Scope
 
-The previous Python prototype is preserved in [`archive/legacy-python/`](archive/legacy-python/) so earlier experiments remain available while the repo transitions to the CUDA-first layout.
+CCO currently tracks one baseline matrix transform version, one GEMM-focused compute path, and a kernel/runtime split designed for future optimization work.

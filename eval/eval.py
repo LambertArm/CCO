@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
-
-
-def main() -> None:
-    print("CCO eval scaffold")
-    print(f"reports dir: {Path(__file__).resolve().parent / 'reports'}")
+from run_eval import main
 
 
 if __name__ == "__main__":

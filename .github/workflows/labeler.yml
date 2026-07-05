@@ -1,7 +1,6 @@
 name: Auto-label
 
-# Automatically labels issues and PRs when they are opened, mirroring the
-# triage flow used by upstream gittensor / sparkinfer:
+# Automatically labels issues and PRs when they are opened.
 #   - PRs get an area:* label for every subsystem they touch (from changed paths)
 #     plus status:needs-review, and status:needs-scorecard when the required eval
 #     scorecard is missing from the description.
@@ -48,19 +47,18 @@ jobs:
             const add = new Set(["status:needs-review"]);
             const remove = new Set();
 
-            // The one rule requires a reproducible scorecard. Treat the PR as
-            // missing it unless the body carries a filled metric (a number next
-            // to accuracy / latency), not just the empty template.
+            // Treat the PR as missing a scorecard unless the body carries a
+            // filled metric, not just the empty template.
             const hasScorecard =
               /accuracy\s*\|?\s*[0-9]/i.test(body) ||
               /latency\s*\|?\s*[0-9]/i.test(body) ||
               /RESULT_JSON/.test(body);
             (hasScorecard ? remove : add).add("status:needs-scorecard");
 
-            // A PR that adds/registers a transform is a strategy proposal.
-            if (/register_transform|class\s+\w+\(Transform\)|\[strategy\]/i.test(
+            // A PR that adds or changes a matrix transform is a transform proposal.
+            if (/register_transform|\[transform\]|\bmatrix transform\b|\btransform\b/i.test(
                   `${pr.title}\n${body}`)) {
-              add.add("type:strategy");
+              add.add("type:transform");
             }
 
             const { owner, repo } = context.repo;
@@ -89,7 +87,7 @@ jobs:
             const labels = new Set(["status:triage"]);
 
             const rules = [
-              [/^\s*\[strategy\]|\btransform\b|\bsubspace\b|\bstrategy\b/i, "type:strategy"],
+              [/^\s*\[transform\]|\btransform\b|\bmatrix transform\b/i, "type:transform"],
               [/^\s*\[bug\]|\bbug\b|\bcrash\b|\bincorrect\b|\bwrong\b|\bfails?\b/i, "type:bug"],
               [/^\s*\[docs?\]|\bdocumentation\b|\breadme\b|\btypo\b/i, "type:docs"],
               [/^\s*\[question\]|\bquestion\b|\bhow do i\b|\?$/i, "type:question"],
@@ -105,8 +103,9 @@ jobs:
             }
 
             const areaRules = [
-              [/\bstrategy\b|\btransform\b|\bsubspace\b/i, "area:strategy"],
-              [/\bmatmul\b|\bgemm\b|\btile\b|\bkernel\b/i, "area:matmul"],
+              [/\btransform\b|\breduction\b/i, "area:kernels"],
+              [/\bgemm\b|\bkernel\b|\btile\b|\bcuda\b/i, "area:kernels"],
+              [/\bruntime\b|\bpipeline\b|\breference\b/i, "area:runtime"],
               [/\beval\b|\bscorer?\b|\bscorecard\b|\bmetric\b/i, "area:eval"],
             ];
             for (const [re, label] of areaRules) {

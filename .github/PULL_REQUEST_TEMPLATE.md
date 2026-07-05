@@ -34,6 +34,6 @@ Use the current `bench/` and `eval/` outputs for these numbers.
 ## Checklist
 
 - [ ] I ran the relevant `bench/` targets for this change.
-- [ ] I ran the relevant `eval/` command for this change.
+- [ ] I ran `python3 eval/run_eval.py` for this change.
 - [ ] I updated docs if the transform ladder changed.
 - [ ] I included the GPU, CUDA version, and dtype used for the measurements.

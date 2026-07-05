@@ -9,3 +9,9 @@ This directory holds CUDA-facing implementation code for CCO.
 - `src/common/`: shared low-level utilities used by kernels
 
 This folder is the optimization frontier of the repo.
+
+Current focus:
+
+- one matrix-only transform version: `0.0.0`
+- GEMM only
+- clean separation from runtime orchestration

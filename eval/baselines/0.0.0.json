@@ -1,0 +1,22 @@
+{
+  "repo": "Cuda-Compute-OSS",
+  "transform_version": "0.0.0",
+  "verdict": "baseline-scaffold",
+  "shapes": [
+    {
+      "n": 1024,
+      "m": 256
+    },
+    {
+      "n": 2048,
+      "m": 512
+    },
+    {
+      "n": 4096,
+      "m": 1024
+    }
+  ],
+  "notes": [
+    "Initial scaffold baseline for CCO eval."
+  ]
+}

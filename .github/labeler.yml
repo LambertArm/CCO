@@ -2,13 +2,13 @@
 # (see .github/workflows/labeler.yml). A PR gets an `area:*` label for every
 # subsystem it touches. Keep the globs in sync with the repo layout.
 
-"area:strategy":
+"area:kernels":
   - changed-files:
-      - any-glob-to-any-file: "strategy/**"
+      - any-glob-to-any-file: "kernels/**"
 
-"area:matmul":
+"area:runtime":
   - changed-files:
-      - any-glob-to-any-file: "matmul/**"
+      - any-glob-to-any-file: "runtime/**"
 
 "area:eval":
   - changed-files:
@@ -19,7 +19,7 @@
       - any-glob-to-any-file:
           - "tests/**"
           - "**/tests/**"
-          - "**/test_*.py"
+          - "**/test_*.cpp"
 
 "area:examples":
   - changed-files:
